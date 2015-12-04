@@ -1,5 +1,5 @@
 /*
-Copyright by Michael Korneev 2015
+Copyright by Michael Kormeev 2015
 */
 #define MULTICAST
 
