@@ -93,7 +93,7 @@ void *reading_thread( void *ptr ){
     if (NULL == (FD = opendir (dir))) 
     {
         fprintf(stderr, "Error : Failed to open input directory - %s\n", strerror(errno));
-        return 1;
+        return;
      }
      for(;;){
           while ((in_file = readdir(FD))) 
