@@ -90,12 +90,17 @@ void *reading_thread( void *ptr ){
     char   *dir_buf = malloc(strlen(dir) + 100);
     char   *cur_buf = malloc(strlen(dir) + 100);   //name buffer for the current file
     /* Scanning the in directory */
-    if (NULL == (FD = opendir (dir))) 
+    /*if (NULL == (FD = opendir (dir))) 
     {
         fprintf(stderr, "Error : Failed to open input directory - %s\n", strerror(errno));
         return;
-     }
+     }*/
      for(;;){
+          if (NULL == (FD = opendir (dir))){
+             fprintf(stderr, "Panic : Failed to open input directory - %s\n", strerror(errno));
+             sleep(1);
+             continue;
+          }
           while ((in_file = readdir(FD))) 
           {
              /* On linux/Unix we don't want current and parent directories
@@ -110,6 +115,7 @@ void *reading_thread( void *ptr ){
                 strcpy(cur_buf, dir_buf);
              }
           }
+          closedir(FD);
           if(min_time == srch_min_time){
              bNoMoreFile = 1;
              printf("no files in directory\r\n");
