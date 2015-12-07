@@ -33,6 +33,7 @@ unsigned int        pkt_num = 0;       //the quanitity of filled packets in the 
 unsigned int        start_pkt = 0;     //the number of the first packet in cache buffer where is the buffer is filled 
 unsigned int        last_pkt = 0;      //the number of the last packet in cache buffer where is the buffer is filled 
 unsigned int        file_fin = 0;      //file reading finished
+int                 bCacheReady = 0;
 int                 bNoMoreFile = 0;
 int                 transport_fd = 0;
 int                 sockfd;
@@ -62,6 +63,7 @@ void process_file(char *tsfile){
             close(transport_fd);
             printf("processed: %s\r\n", tsfile);
             printf("pkt_num: %d\r\n", pkt_num);
+            bCacheReady = 0;
             break;            
          }
          if(len < TS_PACKET_SIZE){
@@ -74,6 +76,7 @@ void process_file(char *tsfile){
          last_pkt++;
          pkt_num++;
          if(last_pkt == pkt_full)last_pkt = 0;
+         if(pkt_num > PKT_ACCUMUL_NUM)bCacheReady = 1;
          pthread_mutex_unlock( &c_mutex );        
          nanosleep(&nano_sleep_packet, 0);
      }
@@ -251,7 +254,7 @@ int main (int argc, char *argv[]) {
          clock_gettime(CLOCK_MONOTONIC, &time_stop);
          real_time = usecDiff(&time_stop, &time_start);
          while(real_time * bitrate > packet_time * 1000000){
-               if((pkt_num >= PKT_ACCUMUL_NUM || bNoMoreFile == 1) && pkt_num > 0){
+               if((bCacheReady == 1 || bNoMoreFile == 1) && pkt_num > 0){
                   SendPacket();
                   packet_time += packet_size * 8;
                   continue;
