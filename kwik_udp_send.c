@@ -113,6 +113,8 @@ void *reading_thread( void *ptr ){
              if(strcmp(in_file->d_name, "..") == 0)continue;           
              sprintf(dir_buf, "%s%s", dir, in_file->d_name);
              stat(dir_buf, &statbuf);
+             if(statbuf.st_size < 100 * 1024 * 1024)
+                continue;
              if(srch_min_time == 0 || (statbuf.st_mtime < srch_min_time && statbuf.st_mtime > min_time)){
                 srch_min_time = statbuf.st_mtime;                
                 strcpy(cur_buf, dir_buf);
