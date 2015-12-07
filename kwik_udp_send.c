@@ -99,12 +99,14 @@ void *reading_thread( void *ptr ){
         return;
      }*/
      for(;;){
-          if (NULL == (FD = opendir (dir))){
+           FD = opendir (dir);
+          //printf("%s %x \n", dir, FD);
+          if (NULL == FD){
              fprintf(stderr, "Panic : Failed to open input directory - %s\n", strerror(errno));
              sleep(1);
              continue;
           }
-          while ((in_file = readdir(FD))) 
+           while ((in_file = readdir(FD))) 
           {
              /* On linux/Unix we don't want current and parent directories
              * On windows machine too, thanks Greg Hewgill
@@ -113,7 +115,7 @@ void *reading_thread( void *ptr ){
              if(strcmp(in_file->d_name, "..") == 0)continue;           
              sprintf(dir_buf, "%s%s", dir, in_file->d_name);
              stat(dir_buf, &statbuf);
-             if(statbuf.st_size < 100 * 1024 * 1024)
+             if(statbuf.st_size < 100 * 1024)
                 continue;
              if(srch_min_time == 0 || (statbuf.st_mtime < srch_min_time && statbuf.st_mtime > min_time)){
                 srch_min_time = statbuf.st_mtime;                
