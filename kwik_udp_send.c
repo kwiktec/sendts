@@ -44,7 +44,7 @@ void process_file(char *tsfile){
      unsigned char temp_buf[TS_PACKET_SIZE];
      unsigned int len;
      transport_fd = open(tsfile, O_RDONLY);
-     printf("processing: %s\r\n", tsfile);
+     printf("Processing: %s\r\n", tsfile);
      if(transport_fd < 0) { 
        fprintf(stderr, "couldn't open file: %s\n", tsfile);
        return;   
@@ -53,7 +53,7 @@ void process_file(char *tsfile){
      for(;;){         
          if(pkt_num + 1 >= pkt_full){
             //the chache buffer is full
-            printf("cache is full\r\n");
+            printf("Cache is full\r\n");
             nanosleep(&nano_sleep_packet, 0);
             continue;
          }
@@ -61,7 +61,7 @@ void process_file(char *tsfile){
          if(len == 0){
             //file reading completed
             close(transport_fd);
-            printf("processed: %s\r\n", tsfile);
+            printf("Processed: %s\r\n", tsfile);
             printf("pkt_num: %d\r\n", pkt_num);
             bCacheReady = 0;
             break;            
@@ -123,7 +123,7 @@ void *reading_thread( void *ptr ){
           closedir(FD);
           if(min_time == srch_min_time){
              bNoMoreFile = 1;
-             printf("no files in directory\r\n");
+             printf("No files in directory\r\n");
              sleep(1);
              continue;
           }
@@ -170,7 +170,7 @@ void SendEmptyPacket(){
          buf[3] = 0x10;
          buf += TS_PACKET_SIZE;
      }
-    // printf("sending empty paket\r\n");
+    // printf("Sending empty packet\r\n");
      int sent = sendto(sockfd, send_buf, packet_size, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
      if(sent <= 0)perror("send(): error ");
 }
@@ -183,7 +183,7 @@ void SendPacket(){
          pthread_mutex_lock( &c_mutex );
          unsigned char *src_buf = cache_buf + start_pkt * TS_PACKET_SIZE;
          memcpy(dst_buf, src_buf, TS_PACKET_SIZE);
-         printf("sending paket: %d\r\n", pkt_num);
+         printf("Sending packet: %d\r\n", pkt_num);
          packet_size2 += TS_PACKET_SIZE;
          pkt_num--;
          start_pkt++;
