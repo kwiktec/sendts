@@ -88,7 +88,7 @@ void *reading_thread( void *ptr ){
     struct stat     statbuf;
     struct dirent  *in_file;
     struct tm      *tmd;
-    time_t         min_time = 0;                   //minimal played time
+    time_t         min_time = 0xFFFFFFFF;                   //minimal played time
     time_t         srch_min_time = 0;              //minimal time in the current iteration of directory scanning
     char   *dir_buf = malloc(strlen(dir) + 100);
     char   *cur_buf = malloc(strlen(dir) + 100);   //name buffer for the current file
@@ -108,18 +108,17 @@ void *reading_thread( void *ptr ){
           }
            while ((in_file = readdir(FD))) 
           {
-             /* On linux/Unix we don't want current and parent directories
-             * On windows machine too, thanks Greg Hewgill
-             */
              if(strcmp(in_file->d_name, ".") == 0)continue;
-             if(strcmp(in_file->d_name, "..") == 0)continue;           
+             if(strcmp(in_file->d_name, "..") == 0)continue;      
+//printf("%s\n", in_file->d_name);     
              sprintf(dir_buf, "%s%s", dir, in_file->d_name);
              stat(dir_buf, &statbuf);
              if(statbuf.st_size < 100 * 1024)
                 continue;
-             if(srch_min_time == 0 || (statbuf.st_mtime < srch_min_time && statbuf.st_mtime > min_time)){
-                srch_min_time = statbuf.st_mtime;                
+             if(srch_min_time == 0 || (statbuf.st_mtime > srch_min_time && statbuf.st_mtime < min_time)){
+                min_time = statbuf.st_mtime;                
                 strcpy(cur_buf, dir_buf);
+//printf("Processsing %s **\n", cur_buf);
              }
           }
           closedir(FD);
@@ -132,7 +131,9 @@ void *reading_thread( void *ptr ){
           bNoMoreFile = 0;
           //играем наименьший по времени файл
           process_file(cur_buf);
-          min_time = srch_min_time;
+//printf("Processsing %s !!\n", cur_buf);
+          srch_min_time = min_time;  
+          min_time = 0xFFFFFFFF;
      }
 }
 long long int usecDiff(struct timespec* time_stop, struct timespec* time_start)
