@@ -39,36 +39,39 @@ int                 transport_fd = 0;
 int                 sockfd;
 struct timespec     nano_sleep_packet;
 struct sockaddr_in  addr;
+int                 bPrint = 0;
 
 void process_file(char *tsfile){
      unsigned char temp_buf[TS_PACKET_SIZE];
-     unsigned int len;
+     int len;
      transport_fd = open(tsfile, O_RDONLY);
      printf("Processing: %s\r\n", tsfile);
      if(transport_fd < 0) { 
-       fprintf(stderr, "couldn't open file: %s\n", tsfile);
-       return;   
+        fprintf(stderr, "couldn't open file: %s\n", tsfile);
+        return;   
      }
      unsigned int read_bytes = 0;  //number of bytes that read from file
      for(;;){         
          if(pkt_num + 1 >= pkt_full){
             //the chache buffer is full
-            printf("Cache is full\r\n");
+            if(bPrint == 1)
+               printf("Cache is full\r\n");
             nanosleep(&nano_sleep_packet, 0);
             continue;
          }
          len = read(transport_fd, temp_buf, TS_PACKET_SIZE);
-         if(len == 0){
+         if(len == 0 || len < TS_PACKET_SIZE){
+            if(len < TS_PACKET_SIZE && len != 0)
+              fprintf(stderr, "read < TS_PACKET_SIZE while reading: %s\n", len);                      
             //file reading completed
-            close(transport_fd);
+            close(transport_fd);             
             printf("Processed: %s\r\n", tsfile);
-            printf("pkt_num: %d\r\n", pkt_num);
+            if(bPrint == 1)
+               printf("pkt_num: %d\r\n", pkt_num);
             bCacheReady = 0;
-            break;            
-         }
-         if(len < TS_PACKET_SIZE){
-            fprintf(stderr, "read < TS_PACKET_SIZE while reading: %s\n", tsfile);            
-         }
+            return;            
+         
+        }
          read_bytes += len;
          pthread_mutex_lock( &c_mutex );
          unsigned char *src_buf = cache_buf + last_pkt * TS_PACKET_SIZE;
@@ -84,82 +87,82 @@ void process_file(char *tsfile){
 
 }
 void *reading_thread( void *ptr ){
-    DIR            *FD;
-    struct stat     statbuf;
-    struct dirent  *in_file;
-    struct tm      *tmd;
-    time_t         min_time = 0xFFFFFFFF;                   //minimal played time
-    time_t         srch_min_time = 0;              //minimal time in the current iteration of directory scanning
-    char   *dir_buf = malloc(strlen(dir) + 100);
-    char   *cur_buf = malloc(strlen(dir) + 100);   //name buffer for the current file
-    /* Scanning the in directory */
-    /*if (NULL == (FD = opendir (dir))) 
-    {
-        fprintf(stderr, "Error : Failed to open input directory - %s\n", strerror(errno));
-        return;
-     }*/
+     DIR            *FD;
+     struct stat     statbuf;
+     struct dirent  *in_file;
+     struct tm      *tmd;
+     time_t         min_time = 0xFFFFFFFF;          //minimal played time
+     time_t         srch_min_time = 0;              //minimal time in the current iteration of directory scanning
+     char   *dir_buf = malloc(strlen(dir) + 100);
+     char   *cur_buf = malloc(strlen(dir) + 100);   //name buffer for the current file
+     //Scanning the in directory 
      for(;;){
            FD = opendir (dir);
-          //printf("%s %x \n", dir, FD);
           if (NULL == FD){
              fprintf(stderr, "Panic : Failed to open input directory - %s\n", strerror(errno));
              sleep(1);
              continue;
           }
-           while ((in_file = readdir(FD))) 
-          {
-             if(strcmp(in_file->d_name, ".") == 0)continue;
-             if(strcmp(in_file->d_name, "..") == 0)continue;      
-//printf("%s\n", in_file->d_name);     
-             sprintf(dir_buf, "%s%s", dir, in_file->d_name);
-             stat(dir_buf, &statbuf);
-             if(statbuf.st_size < 100 * 1024)
-                continue;
-             if(srch_min_time == 0 || (statbuf.st_mtime > srch_min_time && statbuf.st_mtime < min_time)){
-                min_time = statbuf.st_mtime;                
-                strcpy(cur_buf, dir_buf);
-//printf("Processsing %s **\n", cur_buf);
-             }
-          }
+          while((in_file = readdir(FD))){
+                if(strcmp(in_file->d_name, ".") == 0)continue;
+                if(strcmp(in_file->d_name, "..") == 0)continue;        
+                sprintf(dir_buf, "%s%s", dir, in_file->d_name);
+                stat(dir_buf, &statbuf);
+                if(statbuf.st_size < 100 * 1024)
+                   continue;
+                if(bPrint == 1)
+                   printf("time: %x %x %x, %s\n", srch_min_time, min_time, statbuf.st_mtime, in_file->d_name);    
+                if(srch_min_time == 0 || (statbuf.st_mtime > srch_min_time && ((unsigned int)statbuf.st_mtime) < ((unsigned int)min_time))){
+                   if(srch_min_time == 0)srch_min_time = statbuf.st_mtime - 5;
+                   min_time = statbuf.st_mtime;                
+                   strcpy(cur_buf, dir_buf);
+                }
+          }//while((in_file = readdir(FD)))
           closedir(FD);
-          if(min_time == srch_min_time){
+          if(min_time == srch_min_time || min_time == 0xFFFFFFFF){
              bNoMoreFile = 1;
              printf("No files in directory\r\n");
              sleep(1);
              continue;
           }
+          if(pkt_num < PKT_ACCUMUL_NUM){
+             //waiting of current file finish to avoid a break in a next file
+             while(pkt_num > 0){
+                   bNoMoreFile = 1;
+                   nanosleep(&nano_sleep_packet, 0);
+             }
+          }
           bNoMoreFile = 0;
-          //играем наименьший по времени файл
+          //playing a file with minimal modified time
           process_file(cur_buf);
-//printf("Processsing %s !!\n", cur_buf);
           srch_min_time = min_time;  
           min_time = 0xFFFFFFFF;
-     }
+     }//for(;;)
 }
 long long int usecDiff(struct timespec* time_stop, struct timespec* time_start)
 {
-	long long int temp = 0;
-	long long int utemp = 0;
+     long long int temp = 0;
+     long long int utemp = 0;
 		   
-	if (time_stop && time_start) {
-		if (time_stop->tv_nsec >= time_start->tv_nsec) {
-			utemp = time_stop->tv_nsec - time_start->tv_nsec;    
-			temp = time_stop->tv_sec - time_start->tv_sec;
-		} else {
-			utemp = time_stop->tv_nsec + 1000000000 - time_start->tv_nsec;       
-			temp = time_stop->tv_sec - 1 - time_start->tv_sec;
-		}
-		if (temp >= 0 && utemp >= 0) {
-			temp = (temp * 1000000000) + utemp;
-        	} else {
-			fprintf(stderr, "start time %ld.%ld is after stop time %ld.%ld\n", time_start->tv_sec, time_start->tv_nsec, time_stop->tv_sec, time_stop->tv_nsec);
-			temp = -1;
-		}
-	} else {
-		fprintf(stderr, "memory is garbaged?\n");
-		temp = -1;
-	}
-        return temp / 1000;
+     if(time_stop && time_start){
+	if(time_stop->tv_nsec >= time_start->tv_nsec){
+	   utemp = time_stop->tv_nsec - time_start->tv_nsec;    
+	   temp = time_stop->tv_sec - time_start->tv_sec;
+        }else{
+    	   utemp = time_stop->tv_nsec + 1000000000 - time_start->tv_nsec;       
+	   temp = time_stop->tv_sec - 1 - time_start->tv_sec;
+        }
+        if(temp >= 0 && utemp >= 0){
+	   temp = (temp * 1000000000) + utemp;
+        }else{
+	   fprintf(stderr, "start time %ld.%ld is after stop time %ld.%ld\n", time_start->tv_sec, time_start->tv_nsec, time_stop->tv_sec, time_stop->tv_nsec);
+	   temp = -1;
+        }
+     }else{
+	fprintf(stderr, "memory is garbaged?\n");
+	temp = -1;
+     }
+     return temp / 1000;
 }
 void SendEmptyPacket(){
      int i;
@@ -173,7 +176,7 @@ void SendEmptyPacket(){
          buf[3] = 0x10;
          buf += TS_PACKET_SIZE;
      }
-    // printf("Sending empty packet\r\n");
+     //printf("Sending empty packet\r\n");
      int sent = sendto(sockfd, send_buf, packet_size, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
      if(sent <= 0)perror("send(): error ");
 }
@@ -186,15 +189,16 @@ void SendPacket(){
          pthread_mutex_lock( &c_mutex );
          unsigned char *src_buf = cache_buf + start_pkt * TS_PACKET_SIZE;
          memcpy(dst_buf, src_buf, TS_PACKET_SIZE);
-         printf("Sending packet: %d\r\n", pkt_num);
+         if(bPrint == 1)
+            printf("Sending packet: %d of %d, start: %d, last: %d\r\n", start_pkt, pkt_num, start_pkt, last_pkt);
          packet_size2 += TS_PACKET_SIZE;
          pkt_num--;
          start_pkt++;
          if(start_pkt == pkt_full){
             start_pkt = 0;
-         }
-         if(pkt_num <= 0)break;
+         }         
          pthread_mutex_unlock( &c_mutex );
+         if(pkt_num <= 0)break;
          dst_buf += TS_PACKET_SIZE;         
      }
      int sent = sendto(sockfd, send_buf, packet_size2, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
@@ -212,48 +216,49 @@ int main (int argc, char *argv[]) {
      memset(&time_stop, 0, sizeof(time_stop));
      memset(&nano_sleep_packet, 0, sizeof(nano_sleep_packet));
 
-     if(argc < 4 ) {
+     if(argc < 5){
 	fprintf(stderr, "Usage: %s directory ipaddr port bitrate\n", argv[0]);
 	fprintf(stderr, "ts_packet_per_ip_packet default is 7\n");
 	fprintf(stderr, "bit rate refers to transport stream bit rate\n");
 	fprintf(stderr, "zero bitrate is 100.000.000 bps\n");
 	return 0;
-    } else {
-	dir = argv[1];
+     }else{
+        int d_len = strlen(argv[1]);
+        dir = malloc(d_len+2);
+        strcpy(dir, argv[1]);
+        if(dir[d_len-1] != '/')dir[d_len] = '/';
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(argv[2]);
 	addr.sin_port = htons(atoi(argv[3]));
 	bitrate = atoi(argv[4]);
-	if (bitrate <= 0) {
-	    bitrate = 100000000;
+	if(bitrate <= 0){
+	   bitrate = 100000000;
 	}
-	if (argc >= 6) {
-            snd_pkt_num = strtoul(argv[6], 0, 0);
-	    packet_size = snd_pkt_num * TS_PACKET_SIZE;
-	} else {
-	    packet_size = 7 * TS_PACKET_SIZE;
-            snd_pkt_num = 7;
+	if(argc >= 6){
+           snd_pkt_num = strtoul(argv[6], 0, 0);
+	   packet_size = snd_pkt_num * TS_PACKET_SIZE;
+	}else{
+	   packet_size = 7 * TS_PACKET_SIZE;
+           snd_pkt_num = 7;
 	}
-    }
+     }
 
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if(sockfd < 0) {
+     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+     if(sockfd < 0){
 	perror("socket(): error ");
 	return 0;
-    }
-     pkt_full = 30000;
+     }
+     pkt_full = 15000;
      cache_buf = malloc(pkt_full * TS_PACKET_SIZE);
      send_buf = malloc(packet_size);
 
-
      int rt = pthread_create( &thread1, NULL, reading_thread, (void*) 2);
-     if(rt)
-     {
-         fprintf(stderr,"Error - pthread_create(reading_thread) return code: %d\n",rt);
-         exit(EXIT_FAILURE);
+     if(rt){
+        fprintf(stderr,"Error - pthread_create(reading_thread) return code: %d\n",rt);
+        exit(EXIT_FAILURE);
      }
      int   bFirst = 1;
-     nano_sleep_packet.tv_nsec = 665778; /* 1 packet at 100mbps*/
+     nano_sleep_packet.tv_nsec = 665778; // 1 packet at 100mbps
      clock_gettime(CLOCK_MONOTONIC, &time_start);
      for(;;){      
          clock_gettime(CLOCK_MONOTONIC, &time_stop);
