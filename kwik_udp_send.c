@@ -22,6 +22,7 @@ Copyright by Michael Kormeev 2015
 
 #define TS_PACKET_SIZE 188	
 #define PKT_ACCUMUL_NUM 10000
+#define PKT_FULL_NUM    30000
 char                *dir;
 unsigned char*      send_buf;
 pthread_mutex_t     c_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -248,7 +249,7 @@ int main (int argc, char *argv[]) {
 	perror("socket(): error ");
 	return 0;
      }
-     pkt_full = 15000;
+     pkt_full = PKT_FULL_NUM;
      cache_buf = malloc(pkt_full * TS_PACKET_SIZE);
      send_buf = malloc(packet_size);
 
