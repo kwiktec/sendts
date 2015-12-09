@@ -80,7 +80,7 @@ int CheckDecValue(char *Value){
 void PrintMsg(char *msg){
      time_t    t;
      struct tm tm;
-     if(bMsg == 1)printf(msg);
+     if(bMsg == 1)printf("%s", msg);
      if(LogFileD != NULL){
         time_t t = time(NULL);
         tm = *localtime(&t);
@@ -108,7 +108,7 @@ void process_file(char *tsfile){
          len = read(transport_fd, temp_buf, TS_PACKET_SIZE);
          if(len == 0 || len < TS_PACKET_SIZE){
             if(len < TS_PACKET_SIZE && len != 0)
-              fprintf(stderr, "read < TS_PACKET_SIZE while reading: %s\n", len);                      
+              fprintf(stderr, "read < TS_PACKET_SIZE while reading: %d\n", len);                      
             //file reading completed
             close(transport_fd);             
             printf("Processed: %s\r\n", tsfile);
