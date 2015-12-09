@@ -89,6 +89,7 @@ void PrintMsg(char *msg){
      }
 }
 void process_file(char *tsfile){
+     char          st[100]; 
      unsigned char temp_buf[TS_PACKET_SIZE];
      int len;
      transport_fd = open(tsfile, O_RDONLY);
@@ -123,10 +124,15 @@ void process_file(char *tsfile){
          memcpy(src_buf, temp_buf, TS_PACKET_SIZE);
          last_pkt++;
          pkt_num++;
+         if(bPrint == 1){
+            sprintf(st, "reading file %d\n", pkt_num);
+            PrintMsg(st);
+         }
          if(last_pkt == pkt_full)last_pkt = 0;
          if(pkt_num > PktAccumulNum)bCacheReady = 1;
          pthread_mutex_unlock( &c_mutex );        
-         nanosleep(&nano_sleep_packet_r, 0);
+         if(pkt_num  > PktAccumulNum)
+            nanosleep(&nano_sleep_packet_r, 0);
      }     
 }
 void *reading_file( void *ptr ){
