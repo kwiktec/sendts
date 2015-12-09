@@ -1,5 +1,5 @@
 /*
-Copyright by Michael Kormeev 2015
+Copyright by Michael Korneev 2015
 */
 #define MULTICAST
 
@@ -40,6 +40,7 @@ int                 bNoMoreFile = 0;
 int                 transport_fd = 0;
 int                 sockfd;
 struct timespec     nano_sleep_packet;
+struct timespec     nano_sleep_packet_r;
 struct sockaddr_in  addr;
 int                 bPrint = 0;
 int                 bMsg = 0;
@@ -102,7 +103,7 @@ void process_file(char *tsfile){
             //the chache buffer is full
             if(bPrint == 1)
                PrintMsg("Cache is full\r\n");
-            nanosleep(&nano_sleep_packet, 0);
+            nanosleep(&nano_sleep_packet_r, 0);
             continue;
          }
          len = read(transport_fd, temp_buf, TS_PACKET_SIZE);
@@ -125,7 +126,7 @@ void process_file(char *tsfile){
          if(last_pkt == pkt_full)last_pkt = 0;
          if(pkt_num > PktAccumulNum)bCacheReady = 1;
          pthread_mutex_unlock( &c_mutex );        
-         nanosleep(&nano_sleep_packet, 0);
+         nanosleep(&nano_sleep_packet_r, 0);
      }     
 }
 void *reading_file( void *ptr ){
@@ -179,7 +180,7 @@ void *reading_thread( void *ptr ){
              //waiting of current file finish to avoid a break in a next file
              while(pkt_num > 0){
                    bNoMoreFile = 1;
-                   nanosleep(&nano_sleep_packet, 0);
+                   nanosleep(&nano_sleep_packet_r, 0);
              }
           }
           bNoMoreFile = 0;
@@ -274,6 +275,7 @@ int main (int argc, char *argv[]) {
      memset(&time_start, 0, sizeof(time_start));
      memset(&time_stop, 0, sizeof(time_stop));
      memset(&nano_sleep_packet, 0, sizeof(nano_sleep_packet));
+     memset(&nano_sleep_packet_r, 0, sizeof(nano_sleep_packet_r));
      pkt_full = PKT_FULL_NUM;
 
      for(i=1; i<argc; i++){
@@ -404,6 +406,7 @@ int main (int argc, char *argv[]) {
      }
      int   bFirst = 1;
      nano_sleep_packet.tv_nsec = 665778; // 1 packet at 100mbps
+     nano_sleep_packet_r.tv_nsec = 665778; // 1 packet at 100mbps
      clock_gettime(CLOCK_MONOTONIC, &time_start);
      for(;;){      
          clock_gettime(CLOCK_MONOTONIC, &time_stop);
@@ -424,3 +427,4 @@ int main (int argc, char *argv[]) {
      if(LogFileD != NULL)fclose(LogFileD);
      return 0; 
 }
+
