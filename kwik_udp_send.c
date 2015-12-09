@@ -385,7 +385,7 @@ int main (int argc, char *argv[]) {
         return 0;
      }
      cache_buf = malloc(pkt_full * TS_PACKET_SIZE);
-     send_buf = malloc(packet_size
+     send_buf = malloc(packet_size);
 
      if(dir != NULL){
         rt = pthread_create( &thread1, NULL, reading_thread, (void*) 2);
