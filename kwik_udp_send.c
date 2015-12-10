@@ -35,6 +35,7 @@ unsigned int        pkt_num = 0;       //the quanitity of filled packets in the 
 unsigned int        start_pkt = 0;     //the number of the first packet in cache buffer where is the buffer is filled 
 unsigned int        last_pkt = 0;      //the number of the last packet in cache buffer where is the buffer is filled 
 unsigned int        file_fin = 0;      //file reading finished
+unsigned int        bitrate = 0;
 int                 bCacheReady = 0;
 int                 bNoMoreFile = 0;
 int                 transport_fd = 0;
@@ -235,7 +236,7 @@ void SendEmptyPacket(){
      }
      //printf("Sending empty packet\r\n");
      int sent = sendto(sockfd, send_buf, packet_size, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
-     if(sent <= 0)perror("send(): error ");
+     if(sent <= 0)perror("send() in SendEmpty: error ");
 }
 
 void SendPacket(){
@@ -262,27 +263,51 @@ void SendPacket(){
          dst_buf += TS_PACKET_SIZE;         
      }
      int sent = sendto(sockfd, send_buf, packet_size2, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
-     if(sent <= 0)perror("send(): error ");
+     if(sent <= 0)perror("send() in SendPacket: error ");
 }
-int main (int argc, char *argv[]) {     
-     pthread_t thread1, thread2;
+void *sending_thread( void *ptr ){
      unsigned long long int packet_time = 0;
-     unsigned long long int real_time = 0;    
-     unsigned int bitrate = 0;
-     struct timespec time_start;
-     struct timespec time_stop;
-     char     *port = NULL;
-     char     *ip = NULL;
-     char     *br = NULL;
-     char     *ts_in_udp = NULL;
-     int      i;
-     int      rt;
-     memset(&addr, 0, sizeof(addr));
+     unsigned long long int real_time = 0; 
+     struct                 timespec time_start;
+     struct timespec        time_stop;
      memset(&time_start, 0, sizeof(time_start));
      memset(&time_stop, 0, sizeof(time_stop));
+     clock_gettime(CLOCK_MONOTONIC, &time_start);
+     for(;;){      
+         clock_gettime(CLOCK_MONOTONIC, &time_stop);
+         real_time = usecDiff(&time_stop, &time_start);
+         while(real_time * bitrate > packet_time * 1000000){
+               if((bCacheReady == 1 || bNoMoreFile == 1) && pkt_num > 0){
+                  SendPacket();
+                  packet_time += packet_size * 8;
+                  continue;
+               }                       
+               SendEmptyPacket();
+               packet_time += packet_size * 8;
+         }//while(real_time * bitrate > packet_time * 1000000)
+         nanosleep(&nano_sleep_packet, 0);
+     }//for(;;)
+}
+int main (int argc, char *argv[]) {     
+     pthread_t              thread1, thread2, s_thread;
+     pthread_attr_t         attr;
+     pthread_attr_t         attr2;
+     struct sched_param     param;
+     int                    policy = SCHED_FIFO;   
+     char                   *port = NULL;
+     char                   *ip = NULL;
+     char                   *br = NULL;
+     char                   *ts_in_udp = NULL;
+     int                    i;
+     int                    rt;
+     int                    is_multicast = 0;
+     int                    option_ttl = 0;
+     char                   start_addr[4];
+     memset(&addr, 0, sizeof(addr));
      memset(&nano_sleep_packet, 0, sizeof(nano_sleep_packet));
      memset(&nano_sleep_packet_r, 0, sizeof(nano_sleep_packet_r));
      pkt_full = PKT_FULL_NUM;
+     param.sched_priority = 50;
 
      for(i=1; i<argc; i++){
          if(strcmp(argv[i], "-d") ==0){
@@ -307,6 +332,10 @@ int main (int argc, char *argv[]) {
                exit(0);
             }
             ip = argv[i+1]; 
+            memcpy(start_addr, ip, 3);
+            start_addr[3] = 0;
+            is_multicast = atoi(start_addr);
+            is_multicast = (is_multicast >= 224) || (is_multicast <= 239);
             i++; 
             continue;
          }
@@ -327,11 +356,11 @@ int main (int argc, char *argv[]) {
             i++;
             continue;
          }
-         if(strcmp(argv[i], "-m") ==0){
+         if(strcmp(argv[i], "-m") == 0){
             //print messages to screen
             bMsg = 1; bPrint = 1; continue;
          }
-         if(strcmp(argv[i], "-l") ==0){
+         if(strcmp(argv[i], "-l") == 0){
             //print messages to a log file, the name of log follows -l
             LogFileD = fopen(argv[i+1], "a");  
             if(LogFileD == NULL){
@@ -340,7 +369,7 @@ int main (int argc, char *argv[]) {
             i++; 
             continue;
          }
-         if(strcmp(argv[i], "-ts_in_udp") ==0){
+         if(strcmp(argv[i], "--ts_in_udp") ==0 || strcmp(argv[i], "-u") == 0){
             //number of ts packets in one udp packet
             if(CheckDecValue(argv[i+1]) == 0){
                printf("incorrect ts_in_udp value: %s\n", argv[i+1]);
@@ -348,7 +377,7 @@ int main (int argc, char *argv[]) {
             i++;
             continue;
          }
-         if(strcmp(argv[i], "-ts_in_cache") ==0){
+         if(strcmp(argv[i], "--ts_in_cache") ==0 || strcmp(argv[i], "-s") == 0){
             //number of ts packets in cache
             if(CheckDecValue(argv[i+1]) == 0){
                printf("incorrect ts_in_cache value: %s\n", argv[i+1]);
@@ -356,11 +385,27 @@ int main (int argc, char *argv[]) {
             i++;
             continue;
          }
-         if(strcmp(argv[i], "-accumul_ts") ==0){
+         if(strcmp(argv[i], "--accumul_ts") ==0 || strcmp(argv[i], "-a") == 0){
             //number of ts packets in cache
             if(CheckDecValue(argv[i+1]) == 0){
                printf("incorrect accumul_ts value: %s\n", argv[i+1]);
             }else PktAccumulNum = atoi(argv[i+1]); 
+            i++;
+            continue;
+         }
+         if(strcmp(argv[i], "--ttl") ==0 || strcmp(argv[i], "-t") == 0){
+            //number of ts packets in cache
+            if(CheckDecValue(argv[i+1]) == 0){
+               printf("incorrect ts_in_cache value: %s\n", argv[i+1]);
+            }else option_ttl = atoi(argv[i+1]); 
+            i++;
+            continue;
+         }
+         if(strcmp(argv[i], "--pri") ==0 || strcmp(argv[i], "-P") == 0){
+            //number of ts packets in cache
+            if(CheckDecValue(argv[i+1]) == 0){
+               printf("incorrect ts_in_cache value: %s\n", argv[i+1]);
+            }else param.sched_priority = atoi(argv[i+1]); 
             i++;
             continue;
          }         
@@ -391,11 +436,37 @@ int main (int argc, char *argv[]) {
         if(LogFileD != NULL)fclose(LogFileD);
 	return 0;
      }     
+     if(option_ttl != 0){
+        if(is_multicast){
+           rt = setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_TTL, &option_ttl, sizeof(option_ttl));
+        }else{
+           rt = setsockopt(sockfd, IPPROTO_IP, IP_TTL, &option_ttl, sizeof(option_ttl));
+        }	
+        if(rt < 0){
+           perror("ttl configuration fail");
+        }
+	    
+     }
+
+     rt = pthread_setschedparam(pthread_self(), policy, &param);
+     if(rt != 0)
+        perror("pthread_setschedparam");
+     rt = pthread_attr_init(&attr);
+     if(rt != 0)
+        perror("pthread_attr_init");
+     rt = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);  
+     if(rt != 0)
+        perror("pthread_attr_setinheritsched");
+     rt = pthread_attr_setschedpolicy(&attr, policy);
+     if(rt != 0)
+        perror("pthread_attr_setschedpolicy");
+
+
      cache_buf = malloc(pkt_full * TS_PACKET_SIZE);
      send_buf = malloc(packet_size);
      
      if(dir != NULL){
-        rt = pthread_create( &thread1, NULL, reading_thread, (void*) 2);
+        rt = pthread_create( &thread1, &attr, reading_thread, (void*) 2);
         if(rt){
            fprintf(stderr,"Error - pthread_create(reading_thread) return code: %d\n",rt);
            if(LogFileD != NULL)fclose(LogFileD);
@@ -403,7 +474,7 @@ int main (int argc, char *argv[]) {
         }
      }
      if(OneFile != NULL){
-        rt = pthread_create( &thread1, NULL, reading_file, (void*) 2);
+        rt = pthread_create( &thread1, &attr, reading_file, (void*) 2);
         if(rt){
            fprintf(stderr,"Error - pthread_create(reading_file) return code: %d\n",rt);
            if(LogFileD != NULL)fclose(LogFileD);
@@ -413,24 +484,20 @@ int main (int argc, char *argv[]) {
      int   bFirst = 1;
      nano_sleep_packet.tv_nsec = 665778; // 1 packet at 100mbps
      nano_sleep_packet_r.tv_nsec = 665778; // 1 packet at 100mbps
-     clock_gettime(CLOCK_MONOTONIC, &time_start);
-     for(;;){      
-         clock_gettime(CLOCK_MONOTONIC, &time_stop);
-         real_time = usecDiff(&time_stop, &time_start);
-         while(real_time * bitrate > packet_time * 1000000){
-               if((bCacheReady == 1 || bNoMoreFile == 1) && pkt_num > 0){
-                  SendPacket();
-                  packet_time += packet_size * 8;
-                  continue;
-               }                       
-               SendEmptyPacket();
-               packet_time += packet_size * 8;
-         }//while(real_time * bitrate > packet_time * 1000000)
-         nanosleep(&nano_sleep_packet, 0);
-     }//for(;;)
+     rt = pthread_create( &s_thread, &attr, sending_thread, (void*) 2);
+     if(rt){
+        fprintf(stderr,"Error - pthread_create(reading_file) return code: %d\n",rt);
+        if(LogFileD != NULL)fclose(LogFileD);
+        exit(EXIT_FAILURE);
+     }
+     for(;;){
+         sleep(10);
+     }
+     
      close(sockfd);
      free(send_buf);
      if(LogFileD != NULL)fclose(LogFileD);
+     pthread_attr_destroy(&attr);
      return 0; 
 }
 
