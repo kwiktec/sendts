@@ -46,7 +46,8 @@ struct sockaddr_in  addr;
 int                 bPrint = 0;
 int                 bMsg = 0;
 FILE                *LogFileD = NULL;
-unsigned int         PktAccumulNum = PKT_ACCUMUL_NUM;
+unsigned int        PktAccumulNum = PKT_ACCUMUL_NUM;
+int                 bDontExit = 0; 
 
 int CheckIp(char *Value){
      int bWasChifr = 0;
@@ -110,6 +111,9 @@ void process_file(char *tsfile){
          }
          len = read(transport_fd, temp_buf, TS_PACKET_SIZE);
          if(len == 0 || len < TS_PACKET_SIZE){
+            if(bDontExit == 1){
+               continue;
+            }
             if(len < TS_PACKET_SIZE && len != 0)
               fprintf(stderr, "read < TS_PACKET_SIZE while reading: %d\n", len);                      
             //file reading completed
@@ -408,7 +412,12 @@ int main (int argc, char *argv[]) {
             }else param.sched_priority = atoi(argv[i+1]); 
             i++;
             continue;
-         }         
+         }       
+         if(strcmp(argv[i], "-c") == 0){
+            //don't exit on file reading (for FIFO)
+            bDontExit = 1;
+            continue;
+         }    
      }
      if((dir == NULL && OneFile == NULL) || ip == NULL || port == NULL || (dir != NULL && OneFile != NULL)){
 	fprintf(stderr, "Incorrect paramets, see help\n");
