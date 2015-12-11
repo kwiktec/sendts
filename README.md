@@ -23,7 +23,7 @@ Just run make in the project directory
 
 ### Command-line options
 
-* -i <address> - ip address to send packets
+* -i &gt;address&lt; - ip address to send packets
 
 * -p <port> - port to send packets
 
