@@ -23,31 +23,31 @@ Just run make in the project directory
 
 ### Command-line options
 
-* -i &gt;address&lt; - ip address to send packets
+* -i &lt;address&gt; - ip address to send packets
 
-* -p <port> - port to send packets
+* -p &lt;port&gt; - port to send packets
 
-* -b <bitrate> - bitrate of stream
+* -b &lt;bitrate&gt; - bitrate of stream
 
-* -d <path to diectory> - send all files from a directory, sorted my modified time, the directory is scanned in real-time, you can add files on fly
+* -d &lt;path to directory&gt; - send all files from a directory, sorted my modified time, the directory is scanned in real-time, you can add files on fly
 
-* -f <path to file> - send one file, you have to select either a file or a directory
+* -f &lt;path to file&gt; - send one file, you have to select either a file or a directory
 
-* --ts_in_cache <number>, -s <number> - commons cache size
+* --ts_in_cache &lt;number&gt;, -s &lt;number&gt; - commons cache size
 
-* --accumul_ts <number>, -a <number> - size of filled cache part
+* --accumul_ts &lt;number&gt;, -a &lt;number&gt; - size of filled cache part
 
-* --ttl <number>, -t <number> - set ttl
+* --ttl &lt;number&gt;, -t &lt;number&gt; - set ttl
 
-* --pri <number>, -P <number> - set the process/thread priority
+* --pri &lt;number&gt;, -P &lt;number&gt; - set the process/thread priority
 
-* --ts_in_udp <number>, -u <number> - the number of ts packets in one udp packet
+* --ts_in_udp &lt;number&gt;, -u &lt;number&gt; - the number of ts packets in one udp packet
 
 * -c - don't stop file reading if it read zero bytes, use it for FIFO files
 
 * -m - print debugging messages on the screen
 
-* -l <file name> - save debugging messages to a file 
+* -l &lt;file name&gt; - save debugging messages to a file 
 
 ###Examples
 
