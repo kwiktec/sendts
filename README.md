@@ -33,7 +33,7 @@ Just run make in the project directory
 
 * -f &lt;path to file&gt; - send one file, you have to select either a file or a directory
 
-* --ts_in_cache &lt;number&gt;, -s &lt;number&gt; - commons cache size
+* --ts_in_cache &lt;number&gt;, -s &lt;number&gt; - common cache size
 
 * --accumul_ts &lt;number&gt;, -a &lt;number&gt; - size of filled cache part
 
