@@ -5,7 +5,7 @@
 
 * Sending ts file(s) as a ts udp stream
 
-* If there is no files to send, it sens the null packet
+* If there is no files to send, it sends the null packet
 
 * Works with real-time process/threads priorities to provide stability of the stream
 
