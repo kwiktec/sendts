@@ -72,13 +72,27 @@ int CheckIp(char *Value){
      if(NumOfChifr > 3 || NumOfChifr == 0)return 0;
      return 1;
 }
-int CheckDecValue(char *Value){
+int CheckDecValue(char *Value, int bSize){
      int i;
      int len = strlen(Value);
+     if(bSize == 1){
+        if(Value[len-1] == 'M' || Value[len-1] == 'K')len--;
+     }
      for(i=0; i<len; i++){
          if(!(Value[i] >=0x30 && Value[i] <=0x39))return 0;
      }
      return 1;
+}
+int ReadSizeInPkt(char *Value){
+     char st[100];
+     int len = strlen(Value);
+     if(Value[len-1] == 'M' || Value[len-1] == 'K'){
+        memcpy(st, Value, len - 1);
+        int Val = atoi(st);
+        if(Value[len-1] == 'M')return Val * 1024 * 1024 / TS_PACKET_SIZE;
+        return Val * 1024 / TS_PACKET_SIZE;
+     }
+     return atoi(Value);     
 }
 void PrintMsg(char *msg){
      time_t    t;
@@ -345,7 +359,7 @@ int main (int argc, char *argv[]) {
          }
          if(strcmp(argv[i], "-p") ==0){
             //port
-            if(CheckDecValue(argv[i+1]) == 0){
+            if(CheckDecValue(argv[i+1], 0) == 0){
                printf("incorrect port number: %s\n", argv[i+1]);
                exit(0);
             }else port = argv[i+1]; 
@@ -354,7 +368,7 @@ int main (int argc, char *argv[]) {
          }
          if(strcmp(argv[i], "-b") ==0){
             //bitrate 
-            if(CheckDecValue(argv[i+1]) == 0){
+            if(CheckDecValue(argv[i+1], 0) == 0){
                printf("incorrect bitrate: %s\n", argv[i+1]);
             }else br = argv[i+1]; 
             i++;
@@ -375,7 +389,7 @@ int main (int argc, char *argv[]) {
          }
          if(strcmp(argv[i], "--ts_in_udp") ==0 || strcmp(argv[i], "-u") == 0){
             //number of ts packets in one udp packet
-            if(CheckDecValue(argv[i+1]) == 0){
+            if(CheckDecValue(argv[i+1], 0) == 0){
                printf("incorrect ts_in_udp value: %s\n", argv[i+1]);
             }else ts_in_udp = argv[i+1]; 
             i++;
@@ -383,23 +397,23 @@ int main (int argc, char *argv[]) {
          }
          if(strcmp(argv[i], "--ts_in_cache") ==0 || strcmp(argv[i], "-s") == 0){
             //number of ts packets in cache
-            if(CheckDecValue(argv[i+1]) == 0){
+            if(CheckDecValue(argv[i+1], 1) == 0){
                printf("incorrect ts_in_cache value: %s\n", argv[i+1]);
-            }else pkt_full = atoi(argv[i+1]); 
+            }else pkt_full = ReadSizeInPkt(argv[i+1]); 
             i++;
             continue;
          }
          if(strcmp(argv[i], "--accumul_ts") ==0 || strcmp(argv[i], "-a") == 0){
             //number of ts packets in cache
-            if(CheckDecValue(argv[i+1]) == 0){
+            if(CheckDecValue(argv[i+1], 1) == 0){
                printf("incorrect accumul_ts value: %s\n", argv[i+1]);
-            }else PktAccumulNum = atoi(argv[i+1]); 
+            }else PktAccumulNum = ReadSizeInPkt(argv[i+1]); 
             i++;
             continue;
          }
          if(strcmp(argv[i], "--ttl") ==0 || strcmp(argv[i], "-t") == 0){
             //number of ts packets in cache
-            if(CheckDecValue(argv[i+1]) == 0){
+            if(CheckDecValue(argv[i+1], 0) == 0){
                printf("incorrect ts_in_cache value: %s\n", argv[i+1]);
             }else option_ttl = atoi(argv[i+1]); 
             i++;
@@ -407,7 +421,7 @@ int main (int argc, char *argv[]) {
          }
          if(strcmp(argv[i], "--pri") ==0 || strcmp(argv[i], "-P") == 0){
             //number of ts packets in cache
-            if(CheckDecValue(argv[i+1]) == 0){
+            if(CheckDecValue(argv[i+1], 0) == 0){
                printf("incorrect ts_in_cache value: %s\n", argv[i+1]);
             }else param.sched_priority = atoi(argv[i+1]); 
             i++;
