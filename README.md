@@ -51,7 +51,7 @@ Just run make in the project directory
 
 * -l &lt;file name&gt; - save debugging messages to a file 
 
-* -D &lt;seconds&gt - print the state of buffer in some delays (in seconds)
+* -D &lt;seconds&gt; - print the state of buffer in some delays (in seconds)
 
 ###Examples
 
