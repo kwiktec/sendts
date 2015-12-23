@@ -47,6 +47,7 @@ int                 bPrint = 0;
 int                 bMsg = 0;
 FILE                *LogFileD = NULL;
 unsigned int        PktAccumulNum = PKT_ACCUMUL_NUM;
+unsigned int        BufDelay = 0;
 int                 bDontExit = 0; 
 
 int CheckIp(char *Value){
@@ -99,7 +100,7 @@ void PrintMsg(char *msg){
      struct tm tm;
      if(bMsg == 1)printf("%s", msg);
      if(LogFileD != NULL){
-        time_t t = time(NULL);
+        t = time(NULL);
         tm = *localtime(&t);
         fprintf(LogFileD, "[%d-%.2d-%.2d %.2d:%.2d:%.2d] %s", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, msg);
      }
@@ -261,11 +262,12 @@ void SendPacket(){
      char  Msg[150];
      unsigned long long int packet_size2 = 0;
      int i;
+     int bShow;
      unsigned char *dst_buf = send_buf;
      for(i=0; i<snd_pkt_num; i++){
          pthread_mutex_lock( &c_mutex );
          unsigned char *src_buf = cache_buf + start_pkt * TS_PACKET_SIZE;
-         memcpy(dst_buf, src_buf, TS_PACKET_SIZE);
+         memcpy(dst_buf, src_buf, TS_PACKET_SIZE);         
          if(bPrint == 1){
             sprintf(Msg, "Sending packet: %d of %d, start: %d, last: %d\r\n", start_pkt, pkt_num, start_pkt, last_pkt);
             PrintMsg(Msg);
@@ -288,20 +290,29 @@ void *sending_thread( void *ptr ){
      unsigned long long int real_time = 0; 
      struct                 timespec time_start;
      struct timespec        time_stop;
+     time_t                 s_start_time, s_end_time;
      memset(&time_start, 0, sizeof(time_start));
      memset(&time_stop, 0, sizeof(time_stop));
      clock_gettime(CLOCK_MONOTONIC, &time_start);
+     s_start_time = time(NULL);
      for(;;){      
          clock_gettime(CLOCK_MONOTONIC, &time_stop);
          real_time = usecDiff(&time_stop, &time_start);
          while(real_time * bitrate > packet_time * 1000000){
+               if(BufDelay != 0){
+                  s_end_time = time(NULL);
+                  if(abs(s_end_time - s_start_time) > BufDelay){                     
+                     printf("Buffer: %d of %d, start: %d, last: %d\r\n", pkt_num, pkt_full, start_pkt, last_pkt);
+                     s_start_time = s_end_time;
+                  }
+               }
                if((bCacheReady == 1 || bNoMoreFile == 1) && pkt_num > 0){
                   SendPacket();
                   packet_time += packet_size * 8;
                   continue;
                }                       
                SendEmptyPacket();
-               packet_time += packet_size * 8;
+               packet_time += packet_size * 8;               
          }//while(real_time * bitrate > packet_time * 1000000)
          nanosleep(&nano_sleep_packet, 0);
      }//for(;;)
@@ -432,6 +443,14 @@ int main (int argc, char *argv[]) {
             bDontExit = 1;
             continue;
          }    
+         if(strcmp(argv[i], "-D") ==0){
+            //show the buffer condition in some time(seconds)
+            if(CheckDecValue(argv[i+1], 0) == 0){
+               printf("incorrect delay value: %s\n", argv[i+1]);
+            }else BufDelay = atoi(argv[i+1]);         
+            i++; 
+            continue;
+         }
      }
      if((dir == NULL && OneFile == NULL) || ip == NULL || port == NULL || (dir != NULL && OneFile != NULL)){
 	fprintf(stderr, "Incorrect paramets, see help\n");
