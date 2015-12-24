@@ -308,6 +308,7 @@ void *sending_thread( void *ptr ){
      s_start_time = time(NULL);
      for(;;){      
          clock_gettime(CLOCK_MONOTONIC, &time_stop);
+         real_time = usecDiff(&time_stop, &time_start);
          while(real_time * bitrate > packet_time * 1000000){
                if(BufDelay != 0){
                   s_end_time = time(NULL);
