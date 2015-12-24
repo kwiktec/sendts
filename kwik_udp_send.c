@@ -48,6 +48,7 @@ int                 bMsg = 0;
 FILE                *LogFileD = NULL;
 unsigned int        PktAccumulNum = PKT_ACCUMUL_NUM;
 unsigned int        BufDelay = 0;
+unsigned int        bAccumulOnZero = 0;
 int                 bDontExit = 0; 
 
 int CheckIp(char *Value){
@@ -126,9 +127,7 @@ void process_file(char *tsfile){
          }
          len = read(transport_fd, temp_buf, TS_PACKET_SIZE);
          if(len == 0 || len < TS_PACKET_SIZE){
-            if(bDontExit == 1){
-               continue;
-            }
+            if(bDontExit == 1)return;                           
             if(len < TS_PACKET_SIZE && len != 0)
               fprintf(stderr, "read < TS_PACKET_SIZE while reading: %d\n", len);                      
             //file reading completed
@@ -163,6 +162,11 @@ void *reading_file( void *ptr ){
          if(statbuf.st_mtime != sv_time)
             process_file(OneFile);
          sleep(1);
+     }
+}
+void *reading_file2( void *ptr ){
+     for(;;){
+         process_file(OneFile);
      }
 }
 void *reading_thread( void *ptr ){
@@ -278,6 +282,9 @@ void SendPacket(){
          if(start_pkt == pkt_full){
             start_pkt = 0;
          }         
+         if(pkt_num == 0 && bAccumulOnZero == 1){
+            bCacheReady = 0;
+         }
          pthread_mutex_unlock( &c_mutex );
          if(pkt_num <= 0)break;
          dst_buf += TS_PACKET_SIZE;         
@@ -297,7 +304,6 @@ void *sending_thread( void *ptr ){
      s_start_time = time(NULL);
      for(;;){      
          clock_gettime(CLOCK_MONOTONIC, &time_stop);
-         real_time = usecDiff(&time_stop, &time_start);
          while(real_time * bitrate > packet_time * 1000000){
                if(BufDelay != 0){
                   s_end_time = time(NULL);
@@ -411,6 +417,7 @@ int main (int argc, char *argv[]) {
             if(CheckDecValue(argv[i+1], 1) == 0){
                printf("incorrect ts_in_cache value: %s\n", argv[i+1]);
             }else pkt_full = ReadSizeInPkt(argv[i+1]); 
+            printf("Packets in cache buffer: %d\n", pkt_full);
             i++;
             continue;
          }
@@ -419,6 +426,7 @@ int main (int argc, char *argv[]) {
             if(CheckDecValue(argv[i+1], 1) == 0){
                printf("incorrect accumul_ts value: %s\n", argv[i+1]);
             }else PktAccumulNum = ReadSizeInPkt(argv[i+1]); 
+            printf("Accumul packets: %d\n", PktAccumulNum);
             i++;
             continue;
          }
@@ -442,7 +450,12 @@ int main (int argc, char *argv[]) {
             //don't exit on file reading (for FIFO)
             bDontExit = 1;
             continue;
-         }    
+         }   
+         if(strcmp(argv[i], "-A") == 0){
+            //waiting for packet accumultion on zero reach
+            bAccumulOnZero = 1;
+            continue;
+         }  
          if(strcmp(argv[i], "-D") ==0){
             //show the buffer condition in some time(seconds)
             if(CheckDecValue(argv[i+1], 0) == 0){
@@ -516,7 +529,8 @@ int main (int argc, char *argv[]) {
         }
      }
      if(OneFile != NULL){
-        rt = pthread_create( &thread1, &attr, reading_file, (void*) 2);
+        if(bDontExit == 1)rt = pthread_create( &thread1, &attr, reading_file2, (void*) 2);
+        else rt = pthread_create( &thread1, &attr, reading_file, (void*) 2);
         if(rt){
            fprintf(stderr,"Error - pthread_create(reading_file) return code: %d\n",rt);
            if(LogFileD != NULL)fclose(LogFileD);
