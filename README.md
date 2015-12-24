@@ -17,7 +17,7 @@
 
 * Debian Jessy
 
-* Ubuntu 14.04 LTS with lowlatency kernel. It provides really stable TS stream.
+* Ubuntu 14.04 LTS with lowlatency kernel (`sudo apt-get install linux-lowlatency` and restart system). It provides really stable TS stream.
 
 ### Build
 
