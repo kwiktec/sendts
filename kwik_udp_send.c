@@ -127,7 +127,11 @@ void process_file(char *tsfile){
          }
          len = read(transport_fd, temp_buf, TS_PACKET_SIZE);
          if(len == 0 || len < TS_PACKET_SIZE){
-            if(bDontExit == 1)return;                           
+            if(bDontExit == 1){
+               close(transport_fd);             
+               printf("Processed: %s\r\n", tsfile);
+               return;                           
+            }
             if(len < TS_PACKET_SIZE && len != 0)
               fprintf(stderr, "read < TS_PACKET_SIZE while reading: %d\n", len);                      
             //file reading completed
