@@ -49,6 +49,7 @@ FILE                *LogFileD = NULL;
 unsigned int        PktAccumulNum = PKT_ACCUMUL_NUM;
 unsigned int        BufDelay = 0;
 unsigned int        bAccumulOnZero = 0;
+unsigned int        MinFileSize = 0;
 int                 bDontExit = 0; 
 
 int CheckIp(char *Value){
@@ -96,6 +97,17 @@ int ReadSizeInPkt(char *Value){
      }
      return atoi(Value);     
 }
+int ReadSize(char *Value){
+     char st[100];
+     int len = strlen(Value);
+     if(Value[len-1] == 'M' || Value[len-1] == 'K'){
+        memcpy(st, Value, len - 1);
+        int Val = atoi(st);
+        if(Value[len-1] == 'M')return Val * 1024 * 1024;
+        return Val * 1024;
+     }
+     return atoi(Value);     
+}
 void PrintMsg(char *msg){
      time_t    t;
      struct tm tm;
@@ -137,7 +149,7 @@ void process_file(char *tsfile){
             //file reading completed
             close(transport_fd);             
             printf("Processed: %s\r\n", tsfile);
-            bCacheReady = 0;
+            //bCacheReady = 0;
             return;            
          
         }
@@ -163,13 +175,28 @@ void *reading_file( void *ptr ){
      struct stat     statbuf;
      for(;;){
          stat(OneFile, &statbuf);
+         if(MinFileSize != 0){
+            if(statbuf.st_size < MinFileSize){
+               nanosleep(&nano_sleep_packet_r, 0);
+               continue;
+            }
+         }
          if(statbuf.st_mtime != sv_time)
             process_file(OneFile);
+         sv_time = statbuf.st_mtime;
          sleep(1);
      }
 }
 void *reading_file2( void *ptr ){
      for(;;){
+         if(MinFileSize != 0){
+            struct stat st;
+            stat(OneFile, &st);
+            if(st.st_size < MinFileSize){
+               nanosleep(&nano_sleep_packet_r, 0);
+               continue;
+            }
+         }
          process_file(OneFile);
      }
 }
@@ -296,27 +323,24 @@ void SendPacket(){
      int sent = sendto(sockfd, send_buf, packet_size2, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
      if(sent <= 0)perror("send() in SendPacket: error ");
 }
+void *buf_info_thread( void *ptr ){
+     for(;;){
+         printf("Buffer: %d of %d, start: %d, last: %d\r\n", pkt_num, pkt_full, start_pkt, last_pkt);
+         sleep(BufDelay);
+     }
+}
 void *sending_thread( void *ptr ){
      unsigned long long int packet_time = 0;
      unsigned long long int real_time = 0; 
      struct                 timespec time_start;
      struct timespec        time_stop;
-     time_t                 s_start_time, s_end_time;
      memset(&time_start, 0, sizeof(time_start));
      memset(&time_stop, 0, sizeof(time_stop));
      clock_gettime(CLOCK_MONOTONIC, &time_start);
-     s_start_time = time(NULL);
      for(;;){      
          clock_gettime(CLOCK_MONOTONIC, &time_stop);
          real_time = usecDiff(&time_stop, &time_start);
-         while(real_time * bitrate > packet_time * 1000000){
-               if(BufDelay != 0){
-                  s_end_time = time(NULL);
-                  if(abs(s_end_time - s_start_time) > BufDelay){                     
-                     printf("Buffer: %d of %d, start: %d, last: %d\r\n", pkt_num, pkt_full, start_pkt, last_pkt);
-                     s_start_time = s_end_time;
-                  }
-               }
+         while(real_time * bitrate > packet_time * 1000000){               
                if((bCacheReady == 1 || bNoMoreFile == 1) && pkt_num > 0){
                   SendPacket();
                   packet_time += packet_size * 8;
@@ -331,13 +355,15 @@ void *sending_thread( void *ptr ){
 int main (int argc, char *argv[]) {     
      pthread_t              thread1, thread2, s_thread;
      pthread_attr_t         attr;
-     pthread_attr_t         attr2;
+     pthread_attr_t         attr_d;
      struct sched_param     param;
      int                    policy = SCHED_FIFO;   
+     int                    policy_d = SCHED_OTHER; 
      char                   *port = NULL;
      char                   *ip = NULL;
      char                   *br = NULL;
      char                   *ts_in_udp = NULL;
+     int                    bMinOnAccumul = 0;
      int                    i;
      int                    rt;
      int                    is_multicast = 0;
@@ -469,6 +495,25 @@ int main (int argc, char *argv[]) {
             i++; 
             continue;
          }
+         if(strcmp(argv[i], "-F") ==0){
+            //set minimal file size
+            if(CheckDecValue(argv[i+1], 1) == 0){
+               printf("incorrect file size: %s\n", argv[i+1]);
+            }else MinFileSize = ReadSize(argv[i+1]);    
+            printf("Minimal file size in bytes: %d\n", MinFileSize);     
+            i++; 
+            continue;
+         }
+         if(strcmp(argv[i], "-M") ==0){
+            //set minimal file size, based on accumulation buffer value
+            bMinOnAccumul = 1;    
+            i++; 
+            continue;
+         }
+     }
+     if(bMinOnAccumul == 1){
+        MinFileSize = PktAccumulNum * TS_PACKET_SIZE + (((double)PktAccumulNum * TS_PACKET_SIZE) * 0.25);
+        printf("Minimal file size in bytes: %d\n", MinFileSize); 
      }
      if((dir == NULL && OneFile == NULL) || ip == NULL || port == NULL || (dir != NULL && OneFile != NULL)){
 	fprintf(stderr, "Incorrect paramets, see help\n");
@@ -535,9 +580,21 @@ int main (int argc, char *argv[]) {
      }
      if(OneFile != NULL){
         if(bDontExit == 1)rt = pthread_create( &thread1, &attr, reading_file2, (void*) 2);
-        else rt = pthread_create( &thread1, &attr, reading_file, (void*) 2);
+        else{
+           rt = pthread_create( &thread1, &attr, reading_file, (void*) 2);
+        }
         if(rt){
            fprintf(stderr,"Error - pthread_create(reading_file) return code: %d\n",rt);
+           if(LogFileD != NULL)fclose(LogFileD);
+           exit(EXIT_FAILURE);
+        }
+     }
+     if(BufDelay != 0){
+        pthread_attr_init(&attr_d);
+        pthread_attr_setinheritsched(&attr_d, PTHREAD_EXPLICIT_SCHED);       
+        rt = pthread_create( &thread1, &attr_d, buf_info_thread, (void*) 2);
+        if(rt){
+           fprintf(stderr,"Error - pthread_create(buf_info_thread) return code: %d\n",rt);
            if(LogFileD != NULL)fclose(LogFileD);
            exit(EXIT_FAILURE);
         }
