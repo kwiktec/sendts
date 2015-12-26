@@ -55,7 +55,7 @@ Just run make in the project directory
 
 * -F &lt;file size&gt; - set a minimal file size that we're waiting for, you can use K for kilobytes and M for megabytes 
 
-* -M - set a minimal file size base on accumulation buffer size (accumuluation size + 25% of it) 
+* -M - set a minimal file size, based on accumulation buffer size (accumuluation size + 25% of it) 
 
 ###Examples
 
