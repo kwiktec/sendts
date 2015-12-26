@@ -53,6 +53,10 @@ Just run make in the project directory
 
 * -D &lt;seconds&gt; - print the state of buffer in some delays (in seconds)
 
+* - F &lt;file size&gt; - set a minimal file size that we're waiting for, you can use K for kilobytes and M for megabytes 
+
+* - M - set a minimal file size base on accumulation buffer size (accumuluation size + 25% of it) 
+
 ###Examples
 
 ####Reading directory
