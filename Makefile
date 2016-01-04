@@ -1,5 +1,5 @@
 C      = gcc
-LDFLAGS += -pthread
+LDFLAGS += -pthread -lrt
 
 OBJS = kwik_udp_send.o
 TARGET = kwik_udp_send
