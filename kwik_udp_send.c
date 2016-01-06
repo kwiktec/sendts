@@ -198,6 +198,7 @@ void *reading_file2( void *ptr ){
             }
          }
          process_file(OneFile);
+         sleep(1);
      }
 }
 void *reading_thread( void *ptr ){
