@@ -79,3 +79,10 @@ ffmpeg -nostdin -i rtmp://XXX.XXX.XXX.XXX/pool/channel1 -xerror -err_detect expl
 ### Feedback and tickets
 
 We will appreciate you feedback or any contribution to our app. Please create a ticket in case of any question.
+
+### Contribution
+
+Code must be formatted with Artistic Style Utility: http://astyle.sourceforge.net/
+
+Astyle is command-line utility and you have to use such options to format:
+./astyle kwik_udp_send.c -p -c -xC110 -xe -k3
