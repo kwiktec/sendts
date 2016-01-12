@@ -86,3 +86,5 @@ Code must be formatted with Artistic Style Utility: http://astyle.sourceforge.ne
 
 Astyle is command-line utility and you have to use such options to format:
 ./astyle kwik_udp_send.c -p -c -xC110 -xe -k3
+
+We reject contributions that aren't being formatted with astyle.
