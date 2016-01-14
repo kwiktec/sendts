@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# Script for building the udp sender
+
+PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+TEMP_DIR="./tmp"
+TARGET_FORMAT="deb"
+sender_repo_url="https://github.com/KwikFlixTV/kwik-udp-send"
+
+pkg_name="kwik-udp-send"
+pkg_description="Sending ts file(s) as a ts udp stream"
+pkg_vendor="Kwikflix"
+pkg_maintainer="Uknown Maintaner"
+pkg_version="1.0"
+
+################################################################################
+# Parse options
+# Arguments:
+#   Script Arguments
+# Returns:
+#   None
+################################################################################
+options_func() {
+  while getopts "ht:b:" OPTION
+  do
+    case "${OPTION}" in
+      b) TEMP_DIR="${OPTARG}" ;;
+      t) TARGET_FORMAT="${OPTARG}" ;;
+      h) usage_func ;;
+      ?) usage_func ;;
+      *) usage_func ;;
+    esac
+  done
+
+  readonly TARGET_FORMAT
+  readonly TEMP_DIR
+} # options_func()
+
+################################################################################
+# Prereqs checks
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################################
+prereqs_func() {
+  # check fpm package
+  which fpm > /dev/null
+  if [ "$?" -ne "0" ]; then
+    err "fpm package is not installed."
+    echo "Please use the following commands to install it:"
+    echo -e "sudo apt-get install ruby-dev gcc\e[0m"
+    echo -e "sudo gem install fpm"
+    exit 1;
+  fi
+} # prereqs_func()
+
+################################################################################
+# Prints usage for this script
+# Arguments:
+#   None
+# Returns:
+#   None
+################################################################################
+usage_func() {
+  echo "Usage: $0 [-t TARGET_FORMAT] [-b TEMP_DIR]
+
+  -b TEMP_DIR        Temp Directory used for building. (default: ./tmp)
+                     Cleared on each execution.
+  -t TARGET_FORMAT   Target format (example: rpm, deb; default: deb)
+  -h                 Print this help
+" >&2
+  exit 1
+} # end usage_func()
+
+err() {
+  echo -e "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: ${@}" >&2
+} # err()
+
+main() {
+  options_func "$@"
+  prereqs_func
+  sender_path=$(readlink -m "${TEMP_DIR}/kwik-udp-send")
+  binary_path=$(readlink -m "/opt/kwik_udp_send")
+
+  mkdir "${TEMP_DIR}"
+  mkdir "/opt/"
+  mkdir "/opt/kwik_udp_send"
+  test -w "${TEMP_DIR}/" || exit 1
+  git clone ${sender_repo_url} ${sender_path}
+  (cd ${sender_path} && make) 
+  chmod 755 ${sender_path}/kwik_udp_send
+  cp -f "${sender_path}/kwik_udp_send" "/opt/kwik_udp_send/kwik_udp_send"
+  
+  pkg_cmd="fpm -f -s dir "
+  pkg_cmd+="-C \"${binary_path}\" "
+  pkg_cmd+="-t ${TARGET_FORMAT} "
+  pkg_cmd+="--name \"${pkg_name}\" "
+  pkg_cmd+="--description \"${pkg_description}\" "
+  pkg_cmd+="--vendor \"${pkg_vendor}\" "
+  pkg_cmd+="--maintainer \"${pkg_maintainer}\" "
+  pkg_cmd+="--version \"${pkg_version}\" "
+  pkg_cmd+="--iteration ${pkg_iteration} "
+  pkg_cmd+="--package \"/opt/kwik_udp_send\" "
+  #pkg_cmd+="--deb-no-default-config-files "
+  pkg_cmd+="./ "
+  echo "${pkg_cmd}" 
+  eval "${pkg_cmd}" 
+} # end main()
+
+main "$@"
+
