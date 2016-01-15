@@ -1,9 +1,9 @@
-C      = gcc
+C = gcc
 LDFLAGS += -pthread -lrt
 
-OBJS = kwik_udp_send.o
-TARGET = kwik_udp_send
-DESTDIR ?= /usr/local/bin/
+OBJS = sendts.o
+TARGET = sendts
+DESTDIR ?= /usr/local/bin
 
 all: $(TARGET)
 
