@@ -85,6 +85,6 @@ We will appreciate you feedback or any contribution to our app. Please create a 
 Code must be formatted with Artistic Style Utility: http://astyle.sourceforge.net/
 
 Astyle is command-line utility and you have to use such options to format:
-./astyle sendts.c -p -c -xC110 -xe -k3
+./astyle sendts.c -p -c -xC110 -xe -k3 -A14
 
 We reject contributions that aren't being formatted with astyle.
