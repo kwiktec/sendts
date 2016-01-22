@@ -137,7 +137,8 @@ void process_file(char *tsfile) {
     sprintf(st, "Processing: %s\r\n", tsfile);
     PrintMsg(st, 1);
     if(transport_fd < 0) {
-        fprintf(stderr, "couldn't open file: %s\n", tsfile);
+        sprintf(st, "couldn't open file: %s\n", tsfile);
+        PrintMsg(st, 1);
         return;
     }
     CurFile = tsfile;
@@ -161,8 +162,10 @@ void process_file(char *tsfile) {
                 CurFile = NULL;
                 return;
             }
-            if(len < TS_PACKET_SIZE && len != 0)
-                fprintf(stderr, "read < TS_PACKET_SIZE while reading: %d\n", len);
+            if(len < TS_PACKET_SIZE && len != 0){
+                sprintf(st, "read < TS_PACKET_SIZE while reading: %d\n", len);
+                PrintMsg(st, 1);
+            }
             //file reading completed
             close(transport_fd);
             sprintf(st, "Processed: %s\r\n", tsfile);
@@ -360,7 +363,7 @@ void *buf_info_thread( void *ptr ) {
         if(CurFile != NULL) {
             stat(CurFile, &statbuf);
             CurSize = statbuf.st_size / 1024;
-            printf("[%d-%.2d-%.2d %.2d:%.2d:%.2d]: file = %s size = %dKB read = %dKB", tm.tm_year + 1900, tm.tm_mon + 1,
+            printf("[%d-%.2d-%.2d %.2d:%.2d:%.2d]: file = %s size = %dKB read = %dKB\r\n", tm.tm_year + 1900, tm.tm_mon + 1,
                    tm.tm_mday,
                    tm.tm_hour, tm.tm_min, tm.tm_sec, CurFile, CurSize, CurRead / 1024);
         }
@@ -408,6 +411,7 @@ int main (int argc, char *argv[]) {
     int                    is_multicast = 0;
     int                    option_ttl = 0;
     char                   start_addr[4];
+    char                   st[300];
     memset(&addr, 0, sizeof(addr));
     memset(&nano_sleep_packet, 0, sizeof(nano_sleep_packet));
     memset(&nano_sleep_packet_r, 0, sizeof(nano_sleep_packet_r));
@@ -432,7 +436,8 @@ int main (int argc, char *argv[]) {
         if(strcmp(argv[i], "-i") == 0) {
             //ip addr
             if(CheckIp(argv[i + 1]) == 0) {
-                printf("incorrect ip address: %s\n", argv[i + 1]);
+                sprintf(st, "incorrect ip address: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
                 exit(0);
             }
             ip = argv[i + 1];
@@ -446,7 +451,8 @@ int main (int argc, char *argv[]) {
         if(strcmp(argv[i], "-p") == 0) {
             //port
             if(CheckDecValue(argv[i + 1], 0) == 0) {
-                printf("incorrect port number: %s\n", argv[i + 1]);
+                sprintf(st, "incorrect port number: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
                 exit(0);
             } else port = argv[i + 1];
             i++;
@@ -455,7 +461,8 @@ int main (int argc, char *argv[]) {
         if(strcmp(argv[i], "-b") == 0) {
             //bitrate
             if(CheckDecValue(argv[i + 1], 0) == 0) {
-                printf("incorrect bitrate: %s\n", argv[i + 1]);
+                sprintf(st, "incorrect bitrate: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
             } else br = argv[i + 1];
             i++;
             continue;
@@ -470,7 +477,8 @@ int main (int argc, char *argv[]) {
             //print messages to a log file, the name of log follows -l
             LogFileD = fopen(argv[i + 1], "a");
             if(LogFileD == NULL) {
-                printf("couldn't open the log file %s\n", argv[i + 1]);
+                sprintf(st, "couldn't open the log file %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
             } else bPrint = 1;
             i++;
             continue;
@@ -478,7 +486,8 @@ int main (int argc, char *argv[]) {
         if(strcmp(argv[i], "--ts_in_udp") == 0 || strcmp(argv[i], "-u") == 0) {
             //number of ts packets in one udp packet
             if(CheckDecValue(argv[i + 1], 0) == 0) {
-                printf("incorrect ts_in_udp value: %s\n", argv[i + 1]);
+                sprintf(st, "incorrect ts_in_udp value: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
             } else ts_in_udp = argv[i + 1];
             i++;
             continue;
@@ -486,25 +495,30 @@ int main (int argc, char *argv[]) {
         if(strcmp(argv[i], "--ts_in_cache") == 0 || strcmp(argv[i], "-s") == 0) {
             //number of ts packets in cache
             if(CheckDecValue(argv[i + 1], 1) == 0) {
-                printf("incorrect ts_in_cache value: %s\n", argv[i + 1]);
+                printf(st, "incorrect ts_in_cache value: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
             } else pkt_full = ReadSizeInPkt(argv[i + 1]);
-            printf("Packets in cache buffer: %d\n", pkt_full);
+            sprintf(st, "Packets in cache buffer: %d\n", pkt_full);
+            PrintMsg(st, 1);
             i++;
             continue;
         }
         if(strcmp(argv[i], "--accumul_ts") == 0 || strcmp(argv[i], "-a") == 0) {
             //number of ts packets in cache
             if(CheckDecValue(argv[i + 1], 1) == 0) {
-                printf("incorrect accumul_ts value: %s\n", argv[i + 1]);
+                sprintf(st, "incorrect accumul_ts value: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
             } else PktAccumulNum = ReadSizeInPkt(argv[i + 1]);
-            printf("Accumul packets: %d\n", PktAccumulNum);
+            sprintf(st, "Accumul packets: %d\n", PktAccumulNum);
+            PrintMsg(st, 1);
             i++;
             continue;
         }
         if(strcmp(argv[i], "--ttl") == 0 || strcmp(argv[i], "-t") == 0) {
             //number of ts packets in cache
             if(CheckDecValue(argv[i + 1], 0) == 0) {
-                printf("incorrect ts_in_cache value: %s\n", argv[i + 1]);
+                printf(st, "incorrect ts_in_cache value: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
             } else option_ttl = atoi(argv[i + 1]);
             i++;
             continue;
@@ -512,7 +526,8 @@ int main (int argc, char *argv[]) {
         if(strcmp(argv[i], "--pri") == 0 || strcmp(argv[i], "-P") == 0) {
             //number of ts packets in cache
             if(CheckDecValue(argv[i + 1], 0) == 0) {
-                printf("incorrect ts_in_cache value: %s\n", argv[i + 1]);
+                printf(st, "incorrect ts_in_cache value: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
             } else param.sched_priority = atoi(argv[i + 1]);
             i++;
             continue;
@@ -530,7 +545,8 @@ int main (int argc, char *argv[]) {
         if(strcmp(argv[i], "-D") == 0) {
             //show the buffer condition in some time(seconds)
             if(CheckDecValue(argv[i + 1], 0) == 0) {
-                printf("incorrect delay value: %s\n", argv[i + 1]);
+                sprintf(st, "incorrect delay value: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
             } else BufDelay = atoi(argv[i + 1]);
             i++;
             continue;
@@ -538,9 +554,11 @@ int main (int argc, char *argv[]) {
         if(strcmp(argv[i], "-F") == 0) {
             //set minimal file size
             if(CheckDecValue(argv[i + 1], 1) == 0) {
-                printf("incorrect file size: %s\n", argv[i + 1]);
+                sprintf(st, "incorrect file size: %s\n", argv[i + 1]);
+                PrintMsg(st, 1);
             } else MinFileSize = ReadSize(argv[i + 1]);
-            printf("Minimal file size in bytes: %d\n", MinFileSize);
+            sprintf(st, "Minimal file size in bytes: %d\n", MinFileSize);
+            PrintMsg(st, 1);
             i++;
             continue;
         }
@@ -553,10 +571,12 @@ int main (int argc, char *argv[]) {
     }
     if(bMinOnAccumul == 1) {
         MinFileSize = PktAccumulNum * TS_PACKET_SIZE + (((double)PktAccumulNum * TS_PACKET_SIZE) * 0.25);
-        printf("Minimal file size in bytes: %d\n", MinFileSize);
+        sprintf(st, "Minimal file size in bytes: %d\n", MinFileSize);
+        PrintMsg(st, 1);
     }
     if((dir == NULL && OneFile == NULL) || ip == NULL || port == NULL || (dir != NULL && OneFile != NULL)) {
-        fprintf(stderr, "Incorrect paramets, see help\n");
+        sprintf(st, "Incorrect paramets, see help\n");
+        PrintMsg(st, 1);
         if(LogFileD != NULL)fclose(LogFileD);
         return 0;
     }
@@ -576,7 +596,8 @@ int main (int argc, char *argv[]) {
     }
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if(sockfd < 0) {
-        perror("socket(): error ");
+        sprintf(st, "socket(): error ");
+        PrintMsg(st, 1);
         if(LogFileD != NULL)fclose(LogFileD);
         return 0;
     }
@@ -587,27 +608,37 @@ int main (int argc, char *argv[]) {
             rt = setsockopt(sockfd, IPPROTO_IP, IP_TTL, &option_ttl, sizeof(option_ttl));
         }
         if(rt < 0) {
-            perror("ttl configuration fail");
+            sprintf(st, "ttl configuration fail");
+            PrintMsg(st, 1);
         }
     }
     rt = pthread_setschedparam(pthread_self(), policy, &param);
-    if(rt != 0)
-        perror("pthread_setschedparam");
+    if(rt != 0){
+        sprintf(st, "pthread_setschedparam");
+        PrintMsg(st, 1);
+    }
     rt = pthread_attr_init(&attr);
-    if(rt != 0)
-        perror("pthread_attr_init");
+    if(rt != 0){
+        sprintf(st, "pthread_attr_init");
+        PrintMsg(st, 1);
+    }
     rt = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
-    if(rt != 0)
-        perror("pthread_attr_setinheritsched");
+    if(rt != 0){
+        sprintf(st, "pthread_attr_setinheritsched");
+        PrintMsg(st, 1);
+    }
     rt = pthread_attr_setschedpolicy(&attr, policy);
-    if(rt != 0)
-        perror("pthread_attr_setschedpolicy");
+    if(rt != 0){
+        sprintf(st, "pthread_attr_setschedpolicy");
+        PrintMsg(st, 1);
+    }
     cache_buf = malloc(pkt_full * TS_PACKET_SIZE);
     send_buf = malloc(packet_size);
     if(dir != NULL) {
         rt = pthread_create( &thread1, &attr, reading_thread, (void *) 2);
         if(rt) {
-            fprintf(stderr, "Error - pthread_create(reading_thread) return code: %d\n", rt);
+            sprintf(st, "Error - pthread_create(reading_thread) return code: %d\n", rt);
+            PrintMsg(st, 1);
             if(LogFileD != NULL)fclose(LogFileD);
             exit(EXIT_FAILURE);
         }
@@ -618,7 +649,8 @@ int main (int argc, char *argv[]) {
             rt = pthread_create( &thread1, &attr, reading_file, (void *) 2);
         }
         if(rt) {
-            fprintf(stderr, "Error - pthread_create(reading_file) return code: %d\n", rt);
+            sprintf(st, "Error - pthread_create(reading_file) return code: %d\n", rt);
+            PrintMsg(st, 1);
             if(LogFileD != NULL)fclose(LogFileD);
             exit(EXIT_FAILURE);
         }
@@ -628,7 +660,8 @@ int main (int argc, char *argv[]) {
         pthread_attr_setinheritsched(&attr_d, PTHREAD_EXPLICIT_SCHED);
         rt = pthread_create( &thread1, &attr_d, buf_info_thread, (void *) 2);
         if(rt) {
-            fprintf(stderr, "Error - pthread_create(buf_info_thread) return code: %d\n", rt);
+            sprintf(st, "Error - pthread_create(buf_info_thread) return code: %d\n", rt);
+            PrintMsg(st, 1);
             if(LogFileD != NULL)fclose(LogFileD);
             exit(EXIT_FAILURE);
         }
@@ -638,7 +671,8 @@ int main (int argc, char *argv[]) {
     nano_sleep_packet_r.tv_nsec = 665778; // 1 packet at 100mbps
     rt = pthread_create( &s_thread, &attr, sending_thread, (void *) 2);
     if(rt) {
-        fprintf(stderr, "Error - pthread_create(reading_file) return code: %d\n", rt);
+        sprintf(st, "Error - pthread_create(reading_file) return code: %d\n", rt);
+        PrintMsg(st, 1);
         if(LogFileD != NULL)fclose(LogFileD);
         exit(EXIT_FAILURE);
     }
