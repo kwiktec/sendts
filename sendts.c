@@ -32,8 +32,10 @@ unsigned int        packet_size;       //the size of udp packet, that sended per
 unsigned char       *cache_buf;        //the cache buffer
 unsigned int        pkt_full;          //the quantity of all packets in the chache buffer
 unsigned int        pkt_num = 0;       //the quanitity of filled packets in the chache buffer
-unsigned int        start_pkt = 0;     //the number of the first packet in cache buffer where is the buffer is filled
-unsigned int        last_pkt = 0;      //the number of the last packet in cache buffer where is the buffer is filled
+unsigned int        start_pkt =
+    0;     //the number of the first packet in cache buffer where is the buffer is filled
+unsigned int        last_pkt =
+    0;      //the number of the last packet in cache buffer where is the buffer is filled
 unsigned int        file_fin = 0;      //file reading finished
 unsigned int        bitrate = 0;
 int                 bCacheReady = 0;
@@ -51,6 +53,9 @@ unsigned int        BufDelay = 0;
 unsigned int        bAccumulOnZero = 0;
 unsigned int        MinFileSize = 0;
 int                 bDontExit = 0;
+char                *CurFile = NULL;
+int                 CurSize = 0;
+int                 CurRead = 0;
 
 int CheckIp(char *Value) {
     int bWasChifr = 0;
@@ -108,52 +113,66 @@ int ReadSize(char *Value) {
     }
     return atoi(Value);
 }
-void PrintMsg(char *msg) {
+void PrintMsg(char *msg, int bDraw) {
     time_t    t;
     struct tm tm;
-    if(bMsg == 1)printf("%s", msg);
-    if(LogFileD != NULL) {
+    if(bMsg == 1 || LogFileD != NULL || bDraw == 1) {
         t = time(NULL);
         tm = *localtime(&t);
+    }
+    if(bMsg == 1 || bDraw == 1) {
+        printf("[%d-%.2d-%.2d %.2d:%.2d:%.2d] %s", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+               tm.tm_hour, tm.tm_min, tm.tm_sec, msg);
+    }
+    if(LogFileD != NULL) {
         fprintf(LogFileD, "[%d-%.2d-%.2d %.2d:%.2d:%.2d] %s", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                 tm.tm_hour, tm.tm_min, tm.tm_sec, msg);
     }
 }
 void process_file(char *tsfile) {
-    char          st[100];
+    char          st[300];
     unsigned char temp_buf[TS_PACKET_SIZE];
     int len;
     transport_fd = open(tsfile, O_RDONLY);
-    printf("Processing: %s\r\n", tsfile);
+    sprintf(st, "Processing: %s\r\n", tsfile);
+    PrintMsg(st, 1);
     if(transport_fd < 0) {
         fprintf(stderr, "couldn't open file: %s\n", tsfile);
         return;
     }
+    CurFile = tsfile;
+    CurRead = 0;
     unsigned int read_bytes = 0;  //number of bytes that read from file
     for(;;) {
         if(pkt_num + 1 >= pkt_full) {
             //the chache buffer is full
             if(bPrint == 1)
-                PrintMsg("Cache is full\r\n");
+                PrintMsg("Cache is full\r\n", 0);
             nanosleep(&nano_sleep_packet_r, 0);
             continue;
         }
         len = read(transport_fd, temp_buf, TS_PACKET_SIZE);
         if(len == 0 || len < TS_PACKET_SIZE) {
+            if(len > 0)CurRead += len;
             if(bDontExit == 1) {
                 close(transport_fd);
-                printf("Processed: %s\r\n", tsfile);
+                sprintf(st, "Processed: %s\r\n", tsfile);
+                PrintMsg(st, 1);
+                CurFile = NULL;
                 return;
             }
             if(len < TS_PACKET_SIZE && len != 0)
                 fprintf(stderr, "read < TS_PACKET_SIZE while reading: %d\n", len);
             //file reading completed
             close(transport_fd);
-            printf("Processed: %s\r\n", tsfile);
+            sprintf(st, "Processed: %s\r\n", tsfile);
+            PrintMsg(st, 1);
             //bCacheReady = 0;
+            CurFile = NULL;
             return;
         }
         read_bytes += len;
+        CurRead += len;
         pthread_mutex_lock( &c_mutex );
         unsigned char *src_buf = cache_buf + last_pkt * TS_PACKET_SIZE;
         memcpy(src_buf, temp_buf, TS_PACKET_SIZE);
@@ -161,7 +180,7 @@ void process_file(char *tsfile) {
         pkt_num++;
         if(bPrint == 1) {
             sprintf(st, "reading file %d\n", pkt_num);
-            PrintMsg(st);
+            PrintMsg(st, 0);
         }
         if(last_pkt == pkt_full)last_pkt = 0;
         if(pkt_num > PktAccumulNum)bCacheReady = 1;
@@ -208,13 +227,15 @@ void *reading_thread( void *ptr ) {
     struct tm      *tmd;
     time_t         min_time = 0xFFFFFFFF;          //minimal played time
     time_t         srch_min_time = 0;              //minimal time in the current iteration of directory scanning
+    char           st[300];
     char   *dir_buf = malloc(strlen(dir) + 100);
     char   *cur_buf = malloc(strlen(dir) + 100);   //name buffer for the current file
     //Scanning the in directory
     for(;;) {
         FD = opendir (dir);
         if (NULL == FD) {
-            fprintf(stderr, "Panic : Failed to open input directory - %s\n", strerror(errno));
+            sprintf(st, "Panic : Failed to open input directory - %s\n", strerror(errno));
+            PrintMsg(st, 1);
             sleep(1);
             continue;
         }
@@ -235,7 +256,7 @@ void *reading_thread( void *ptr ) {
         closedir(FD);
         if(min_time == srch_min_time || min_time == 0xFFFFFFFF) {
             bNoMoreFile = 1;
-            printf("No files in directory\r\n");
+            PrintMsg("No files in directory\r\n", 1);
             sleep(1);
             continue;
         }
@@ -253,10 +274,10 @@ void *reading_thread( void *ptr ) {
         min_time = 0xFFFFFFFF;
     }//for(;;)
 }
-long long int usecDiff(struct timespec *time_stop, struct timespec *time_start)
-{
+long long int usecDiff(struct timespec *time_stop, struct timespec *time_start) {
     long long int temp = 0;
     long long int utemp = 0;
+    char  st[300];
     if(time_stop && time_start) {
         if(time_stop->tv_nsec >= time_start->tv_nsec) {
             utemp = time_stop->tv_nsec - time_start->tv_nsec;
@@ -268,12 +289,14 @@ long long int usecDiff(struct timespec *time_stop, struct timespec *time_start)
         if(temp >= 0 && utemp >= 0) {
             temp = (temp * 1000000000) + utemp;
         } else {
-            fprintf(stderr, "start time %ld.%ld is after stop time %ld.%ld\n", time_start->tv_sec, time_start->tv_nsec,
+            sprintf(st, "start time %ld.%ld is after stop time %ld.%ld\n", time_start->tv_sec, time_start->tv_nsec,
                     time_stop->tv_sec, time_stop->tv_nsec);
+            PrintMsg(st, 1);
             temp = -1;
         }
     } else {
-        fprintf(stderr, "memory is garbaged?\n");
+        sprintf(st, "memory is garbaged?\n");
+        PrintMsg(st, 1);
         temp = -1;
     }
     return temp / 1000;
@@ -292,7 +315,9 @@ void SendEmptyPacket() {
     }
     //printf("Sending empty packet\r\n");
     int sent = sendto(sockfd, send_buf, packet_size, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
-    if(sent <= 0)perror("send() in SendEmpty: error ");
+    if(sent <= 0) {
+        PrintMsg("send() in SendEmpty: error ", 1);
+    }
 }
 
 void SendPacket() {
@@ -307,7 +332,7 @@ void SendPacket() {
         memcpy(dst_buf, src_buf, TS_PACKET_SIZE);
         if(bPrint == 1) {
             sprintf(Msg, "Sending packet: %d of %d, start: %d, last: %d\r\n", start_pkt, pkt_num, start_pkt, last_pkt);
-            PrintMsg(Msg);
+            PrintMsg(Msg, 0);
         }
         packet_size2 += TS_PACKET_SIZE;
         pkt_num--;
@@ -326,7 +351,19 @@ void SendPacket() {
     if(sent <= 0)perror("send() in SendPacket: error ");
 }
 void *buf_info_thread( void *ptr ) {
+    time_t    t;
+    struct tm tm;
+    struct stat     statbuf;
     for(;;) {
+        t = time(NULL);
+        tm = *localtime(&t);
+        if(CurFile != NULL) {
+            stat(CurFile, &statbuf);
+            CurSize = statbuf.st_size / 1024;
+            printf("[%d-%.2d-%.2d %.2d:%.2d:%.2d]: file = %s size = %dKB read = %dKB", tm.tm_year + 1900, tm.tm_mon + 1,
+                   tm.tm_mday,
+                   tm.tm_hour, tm.tm_min, tm.tm_sec, CurFile, CurSize, CurRead / 1024);
+        }
         printf("Buffer: %d of %d, start: %d, last: %d\r\n", pkt_num, pkt_full, start_pkt, last_pkt);
         sleep(BufDelay);
     }
