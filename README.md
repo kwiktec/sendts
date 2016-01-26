@@ -57,6 +57,18 @@ Just run make in the project directory
 
 * -M - set a minimal file size, based on accumulation buffer size (accumuluation size + 25% of it) 
 
+* -v[0-3] - verbosity level
+
+###Verbosity
+
+* -v0 - prints nothing
+
+* -v1 - prints minimal information about processing
+
+* -v2 - prints information about buffer state with one second delay
+
+* -v3 - prints debugging messages 
+
 ###Examples
 
 ####Read files from a directory
