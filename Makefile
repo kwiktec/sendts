@@ -1,7 +1,7 @@
 C = gcc
 LDFLAGS += -pthread -lrt
 
-OBJS = sendts.o
+OBJS = sendts.o help.o
 TARGET = sendts
 DESTDIR ?= /usr/local/bin
 

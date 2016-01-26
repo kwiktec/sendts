@@ -19,6 +19,7 @@ Copyright by Michael Korneev 2015
 #include <dirent.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
 
 #define TS_PACKET_SIZE 188
 #define PKT_ACCUMUL_NUM 10000
@@ -57,6 +58,22 @@ char                *CurFile = NULL;
 int                 CurSize = 0;
 int                 CurRead = 0;
 int                 iVerbose = 1;
+struct sigaction    act;
+
+void PrintHelp();
+
+void sighandler(int signum, siginfo_t *info, void *ptr) {
+    time_t          t;
+    struct tm       tm;
+    t = time(NULL);
+    tm = *localtime(&t);
+    if(CurFile != NULL) {
+        printf("[%d-%.2d-%.2d %.2d:%.2d:%.2d]: file = %s size = %dKB read = %dKB, ", tm.tm_year + 1900, tm.tm_mon + 1,
+               tm.tm_mday,
+               tm.tm_hour, tm.tm_min, tm.tm_sec, CurFile, CurSize, CurRead / 1024);
+    }
+    printf("buffer: %d of %d, start: %d, last: %d\r\n", pkt_num, pkt_full, start_pkt, last_pkt);
+}
 
 int CheckIp(char *Value) {
     int bWasChifr = 0;
@@ -86,7 +103,7 @@ int CheckDecValue(char *Value, int bSize) {
     int len = strlen(Value);
     if(bSize == 1) {
         if(Value[len - 1] == 'M' || Value[len - 1] == 'K')len--;
-    }    
+    }
     for(i = 0; i < len; i++) {
         if(!(Value[i] >= 0x30 && Value[i] <= 0x39))return 0;
     }
@@ -155,10 +172,10 @@ void process_file(char *tsfile) {
             nanosleep(&nano_sleep_packet_r, 0);
             continue;
         }
-        if(BufDelay != 0){
-           curp = lseek(transport_fd, 0, SEEK_CUR);
-           CurSize = lseek(transport_fd, 0, SEEK_END) / 1024;
-           lseek(transport_fd, curp, SEEK_SET);
+        if(BufDelay != 0) {
+            curp = lseek(transport_fd, 0, SEEK_CUR);
+            CurSize = lseek(transport_fd, 0, SEEK_END) / 1024;
+            lseek(transport_fd, curp, SEEK_SET);
         }
         len = read(transport_fd, temp_buf, TS_PACKET_SIZE);
         if(len == 0 || len < TS_PACKET_SIZE) {
@@ -170,7 +187,7 @@ void process_file(char *tsfile) {
                 CurFile = NULL;
                 return;
             }
-            if(len < TS_PACKET_SIZE && len != 0){
+            if(len < TS_PACKET_SIZE && len != 0) {
                 sprintf(st, "read < TS_PACKET_SIZE while reading: %d\n", len);
                 PrintMsg(st, 1);
             }
@@ -364,13 +381,10 @@ void SendPacket() {
 void *buf_info_thread( void *ptr ) {
     time_t          t;
     struct tm       tm;
-    //struct stat     statbuf;
     for(;;) {
         t = time(NULL);
         tm = *localtime(&t);
         if(CurFile != NULL) {
-            //stat(CurFile, &statbuf);
-            //CurSize = statbuf.st_size / 1024;
             printf("[%d-%.2d-%.2d %.2d:%.2d:%.2d]: file = %s size = %dKB read = %dKB, ", tm.tm_year + 1900, tm.tm_mon + 1,
                    tm.tm_mday,
                    tm.tm_hour, tm.tm_min, tm.tm_sec, CurFile, CurSize, CurRead / 1024);
@@ -426,9 +440,16 @@ int main (int argc, char *argv[]) {
     pkt_full = PKT_FULL_NUM;
     param.sched_priority = 50;
     for(i = 1; i < argc; i++) {
+        if(strcmp(argv[i], "-h") == 0) {
+           PrintHelp();
+           exit(0);
+        }
         if(strcmp(argv[i], "-d") == 0) {
             //directory
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             int d_len = strlen(argv[i + 1]);
             dir = malloc(d_len + 2);
             strcpy(dir, argv[i + 1]);
@@ -438,14 +459,20 @@ int main (int argc, char *argv[]) {
         }
         if(strcmp(argv[i], "-f") == 0) {
             //file
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             OneFile = argv[i + 1];
             i++;
             continue;
         }
         if(strcmp(argv[i], "-i") == 0) {
             //ip addr
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckIp(argv[i + 1]) == 0) {
                 sprintf(st, "incorrect ip address: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
@@ -461,7 +488,10 @@ int main (int argc, char *argv[]) {
         }
         if(strcmp(argv[i], "-p") == 0) {
             //port
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckDecValue(argv[i + 1], 0) == 0) {
                 sprintf(st, "incorrect port number: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
@@ -472,7 +502,10 @@ int main (int argc, char *argv[]) {
         }
         if(strcmp(argv[i], "-b") == 0) {
             //bitrate
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckDecValue(argv[i + 1], 0) == 0) {
                 sprintf(st, "incorrect bitrate: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
@@ -488,7 +521,10 @@ int main (int argc, char *argv[]) {
         }
         if(strcmp(argv[i], "-l") == 0) {
             //print messages to a log file, the name of log follows -l
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             LogFileD = fopen(argv[i + 1], "a");
             if(LogFileD == NULL) {
                 sprintf(st, "couldn't open the log file %s\n", argv[i + 1]);
@@ -499,7 +535,10 @@ int main (int argc, char *argv[]) {
         }
         if(strcmp(argv[i], "--ts_in_udp") == 0 || strcmp(argv[i], "-u") == 0) {
             //number of ts packets in one udp packet
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckDecValue(argv[i + 1], 0) == 0) {
                 sprintf(st, "incorrect ts_in_udp value: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
@@ -509,31 +548,36 @@ int main (int argc, char *argv[]) {
         }
         if(strcmp(argv[i], "--ts_in_cache") == 0 || strcmp(argv[i], "-s") == 0) {
             //number of ts packets in cache
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckDecValue(argv[i + 1], 1) == 0) {
                 printf(st, "incorrect ts_in_cache value: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
             } else pkt_full = ReadSizeInPkt(argv[i + 1]);
-            sprintf(st, "Packets in cache buffer: %d\n", pkt_full);
-            PrintMsg(st, 1);
             i++;
             continue;
         }
         if(strcmp(argv[i], "--accumul_ts") == 0 || strcmp(argv[i], "-a") == 0) {
             //number of ts packets in cache
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckDecValue(argv[i + 1], 1) == 0) {
                 sprintf(st, "incorrect accumul_ts value: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
             } else PktAccumulNum = ReadSizeInPkt(argv[i + 1]);
-            sprintf(st, "Accumul packets: %d\n", PktAccumulNum);
-            PrintMsg(st, 1);
             i++;
             continue;
         }
         if(strcmp(argv[i], "--ttl") == 0 || strcmp(argv[i], "-t") == 0) {
             //number of ts packets in cache
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckDecValue(argv[i + 1], 0) == 0) {
                 printf(st, "incorrect ts_in_cache value: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
@@ -543,7 +587,10 @@ int main (int argc, char *argv[]) {
         }
         if(strcmp(argv[i], "--pri") == 0 || strcmp(argv[i], "-P") == 0) {
             //number of ts packets in cache
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckDecValue(argv[i + 1], 0) == 0) {
                 printf(st, "incorrect ts_in_cache value: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
@@ -563,7 +610,10 @@ int main (int argc, char *argv[]) {
         }
         if(strcmp(argv[i], "-D") == 0) {
             //show the buffer condition in some time(seconds)
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckDecValue(argv[i + 1], 0) == 0) {
                 sprintf(st, "incorrect delay value: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
@@ -573,13 +623,14 @@ int main (int argc, char *argv[]) {
         }
         if(strcmp(argv[i], "-F") == 0) {
             //set minimal file size
-            if(i+1 >= argc){PrintMsg("Incorrect parameter number\n", 1); exit(0);}
+            if(i + 1 >= argc) {
+                PrintMsg("Incorrect parameter number\n", 1);
+                exit(0);
+            }
             if(CheckDecValue(argv[i + 1], 1) == 0) {
                 sprintf(st, "incorrect file size: %s\n", argv[i + 1]);
                 PrintMsg(st, 1);
             } else MinFileSize = ReadSize(argv[i + 1]);
-            sprintf(st, "Minimal file size in bytes: %d\n", MinFileSize);
-            PrintMsg(st, 1);
             i++;
             continue;
         }
@@ -590,21 +641,29 @@ int main (int argc, char *argv[]) {
             continue;
         }
         if(strcmp(argv[i], "-v0") == 0) {
-           iVerbose = 0;
-           continue;
+            iVerbose = 0;
+            continue;
         }
         if(strcmp(argv[i], "-v1") == 0) {
-           iVerbose = 1;
-           continue;
+            iVerbose = 1;
+            continue;
         }
         if(strcmp(argv[i], "-v2") == 0) {
-           iVerbose = 2;
-           continue;
+            iVerbose = 2;
+            continue;
         }
         if(strcmp(argv[i], "-v3") == 0) {
-           iVerbose = 3;
-           continue;
+            iVerbose = 3;
+            continue;
         }
+    }
+    if(iVerbose != 0){
+        sprintf(st, "Accumul packets: %d\n", PktAccumulNum);
+        PrintMsg(st, 1);
+        sprintf(st, "Packets in cache buffer: %d\n", pkt_full);
+        PrintMsg(st, 1);
+        sprintf(st, "Minimal file size in bytes: %d\n", MinFileSize);
+        PrintMsg(st, 1);
     }
     if(bMinOnAccumul == 1) {
         MinFileSize = PktAccumulNum * TS_PACKET_SIZE + (((double)PktAccumulNum * TS_PACKET_SIZE) * 0.25);
@@ -617,12 +676,13 @@ int main (int argc, char *argv[]) {
         if(LogFileD != NULL)fclose(LogFileD);
         return 0;
     }
-    if(MinFileSize < PktAccumulNum * TS_PACKET_SIZE){
-       sprintf(st, "Minimal file size must be greater or equal than the accumulation buffer size\n");
-       PrintMsg(st, 1);
-       if(LogFileD != NULL)fclose(LogFileD);
-       exit(EXIT_FAILURE);
+    if(MinFileSize < PktAccumulNum * TS_PACKET_SIZE) {
+        sprintf(st, "Minimal file size must be greater or equal than the accumulation buffer size\n");
+        PrintMsg(st, 1);
+        if(LogFileD != NULL)fclose(LogFileD);
+        exit(EXIT_FAILURE);
     }
+
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = inet_addr(ip);
     addr.sin_port = htons(atoi(port));
@@ -656,22 +716,22 @@ int main (int argc, char *argv[]) {
         }
     }
     rt = pthread_setschedparam(pthread_self(), policy, &param);
-    if(rt != 0){
+    if(rt != 0) {
         sprintf(st, "pthread_setschedparam");
         PrintMsg(st, 1);
     }
     rt = pthread_attr_init(&attr);
-    if(rt != 0){
+    if(rt != 0) {
         sprintf(st, "pthread_attr_init");
         PrintMsg(st, 1);
     }
     rt = pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
-    if(rt != 0){
+    if(rt != 0) {
         sprintf(st, "pthread_attr_setinheritsched");
         PrintMsg(st, 1);
     }
     rt = pthread_attr_setschedpolicy(&attr, policy);
-    if(rt != 0){
+    if(rt != 0) {
         sprintf(st, "pthread_attr_setschedpolicy");
         PrintMsg(st, 1);
     }
@@ -720,6 +780,9 @@ int main (int argc, char *argv[]) {
         if(LogFileD != NULL)fclose(LogFileD);
         exit(EXIT_FAILURE);
     }
+    act.sa_sigaction = sighandler;
+    act.sa_flags = SA_SIGINFO;
+    sigaction(SIGUSR1, &act, NULL);
     for(;;) {
         sleep(10);
     }
