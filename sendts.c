@@ -533,7 +533,7 @@ int main (int argc, char *argv[]) {
             i++;
             continue;
         }
-        if(strcmp(argv[i], "--ts_in_udp") == 0 || strcmp(argv[i], "-u") == 0) {
+        if(strcmp(argv[i], "-u") == 0) {
             //number of ts packets in one udp packet
             if(i + 1 >= argc) {
                 PrintMsg("Incorrect parameter number\n", 1);
@@ -546,7 +546,7 @@ int main (int argc, char *argv[]) {
             i++;
             continue;
         }
-        if(strcmp(argv[i], "--ts_in_cache") == 0 || strcmp(argv[i], "-s") == 0) {
+        if(strcmp(argv[i], "-s") == 0) {
             //number of ts packets in cache
             if(i + 1 >= argc) {
                 PrintMsg("Incorrect parameter number\n", 1);
@@ -559,7 +559,7 @@ int main (int argc, char *argv[]) {
             i++;
             continue;
         }
-        if(strcmp(argv[i], "--accumul_ts") == 0 || strcmp(argv[i], "-a") == 0) {
+        if(strcmp(argv[i], "-a") == 0) {
             //number of ts packets in cache
             if(i + 1 >= argc) {
                 PrintMsg("Incorrect parameter number\n", 1);
@@ -572,7 +572,7 @@ int main (int argc, char *argv[]) {
             i++;
             continue;
         }
-        if(strcmp(argv[i], "--ttl") == 0 || strcmp(argv[i], "-t") == 0) {
+        if(strcmp(argv[i], "-t") == 0) {
             //number of ts packets in cache
             if(i + 1 >= argc) {
                 PrintMsg("Incorrect parameter number\n", 1);
@@ -585,7 +585,7 @@ int main (int argc, char *argv[]) {
             i++;
             continue;
         }
-        if(strcmp(argv[i], "--pri") == 0 || strcmp(argv[i], "-P") == 0) {
+        if(strcmp(argv[i], "-P") == 0) {
             //number of ts packets in cache
             if(i + 1 >= argc) {
                 PrintMsg("Incorrect parameter number\n", 1);
