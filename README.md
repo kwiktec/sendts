@@ -35,15 +35,15 @@ Just run make in the project directory
 
 * -f &lt;path to file&gt; - send one file, you have to select either a file or a directory
 
-* --ts_in_cache &lt;number&gt;, -s &lt;number&gt; - common cache size, you can use K to set the size in kilobytes and M in megabytes
+* -s &lt;number&gt; - common cache size, you can use K to set the size in kilobytes and M in megabytes
 
-* --accumul_ts &lt;number&gt;, -a &lt;number&gt; - size of filled cache part, you can use K to set the size in kilobytes and M in megabytes
+* -a &lt;number&gt; - size of filled cache part, you can use K to set the size in kilobytes and M in megabytes
 
-* --ttl &lt;number&gt;, -t &lt;number&gt; - set ttl
+* -t &lt;number&gt; - set ttl
 
-* --pri &lt;number&gt;, -P &lt;number&gt; - set the process/thread priority
+* -P &lt;number&gt; - set the process/thread priority
 
-* --ts_in_udp &lt;number&gt;, -u &lt;number&gt; - the number of ts packets in one udp packet
+* -u &lt;number&gt; - the number of ts packets in one udp packet
 
 * -c - don't stop file reading if it read zero bytes, use it for FIFO files
 
